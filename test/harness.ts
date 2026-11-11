@@ -37,6 +37,7 @@ export interface GasChatInstance {
     error?: string;
   };
   run<T>(source: string, fn: () => T): T;
+  logger<T extends object>(inner: T, options?: { levels?: unknown }): T;
 }
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));

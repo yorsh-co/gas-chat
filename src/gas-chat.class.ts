@@ -213,6 +213,92 @@ class GasChat {
     }
   }
 
+  /**
+   * Decorates a logger so selected levels also raise a Chat alert.
+   *
+   * The inner logger is always called first and keeps its `this`; alerts never
+   * throw. `child` loggers are decorated too.
+   *
+   * @param inner - Any object with an `error` method, such as GasLogger or `console`.
+   * @param options - See {@link GasChatLoggerOptions}.
+   * @returns A proxy with the same shape as `inner`.
+   * @throws {TypeError} When `inner` or `levels` is invalid.
+   */
+  logger<T extends GasChatLoggerTarget>(
+    inner: T,
+    options: GasChatLoggerOptions = {},
+  ): T {
+    if (
+      inner === null ||
+      (typeof inner !== 'object' && typeof inner !== 'function') ||
+      typeof inner.error !== 'function'
+    ) {
+      throw new TypeError('[GasChat] logger target needs an error() method');
+    }
+    const levels = options.levels ?? GAS_CHAT_DEFAULT_LOG_LEVELS;
+    if (
+      !Array.isArray(levels) ||
+      levels.length === 0 ||
+      levels.some((level) => typeof level !== 'string')
+    ) {
+      throw new TypeError('[GasChat] levels must be a non-empty string array');
+    }
+
+    const target = inner as unknown as Record<string, unknown>;
+    return new Proxy(inner, {
+      get: (_obj, prop) => {
+        const value = target[prop as string];
+        if (typeof value !== 'function') {
+          return value;
+        }
+        const method = value as (...args: unknown[]) => unknown;
+        if (typeof prop === 'string' && levels.indexOf(prop) !== -1) {
+          return (msg: string, meta?: Record<string, unknown>) => {
+            method.call(inner, msg, meta);
+            try {
+              this._alert(this._alertFromLog(msg, meta));
+            } catch (e) {
+              this._alertFailure(e);
+            }
+          };
+        }
+        if (prop === 'child') {
+          return (...args: unknown[]) =>
+            this.logger(method.apply(inner, args) as T, options);
+        }
+        return method.bind(inner);
+      },
+    });
+  }
+
+  /** Builds an alert from a logger call's message and metadata. */
+  private _alertFromLog(
+    msg: string,
+    meta: Record<string, unknown> = {},
+  ): GasChatAlert {
+    const source = meta !== null && typeof meta === 'object' ? meta : {};
+    const cause = source.error ?? source.err;
+    const causeError = cause instanceof Error ? cause : undefined;
+    const message =
+      typeof source.message === 'string'
+        ? source.message
+        : (causeError?.message ?? String(msg));
+    const stack =
+      typeof source.stack === 'string' ? source.stack : causeError?.stack;
+    const context: Record<string, unknown> = {};
+    for (const key of Object.keys(source)) {
+      if (['message', 'stack', 'error', 'err'].indexOf(key) === -1) {
+        context[key] = source[key];
+      }
+    }
+    return {
+      title: String(msg),
+      message,
+      ...(stack !== undefined ? { stack } : {}),
+      context,
+    };
+  }
+
   /** Sends an alert, suppressing duplicates. Never throws. */
   private _alert(alert: GasChatAlert): GasChatSendResult {
     try {
