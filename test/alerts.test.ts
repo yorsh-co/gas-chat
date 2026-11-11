@@ -21,6 +21,17 @@ describe('notifyError', () => {
     expect(sentText(mocks).split('\n')).not.toContain('``');
   });
 
+  it.each([['abc'], [['a', 'b']], [null]])(
+    'ignores a non-object context (%#)',
+    (context) => {
+      const { chat, mocks } = setup();
+      chat.notifyError(new Error('x'), context as never);
+      const text = sentText(mocks);
+      expect(text).not.toContain('`0`');
+      expect(text).not.toContain('`1`');
+    },
+  );
+
   it('sends a formatted alert', () => {
     const { chat, mocks } = setup({ appName: 'Orders' });
     const result = chat.notifyError(new Error('boom'), { source: 's' });
