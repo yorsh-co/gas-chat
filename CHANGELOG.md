@@ -13,4 +13,8 @@
 - Peer type declarations (`peer/gas-chat.peer.types.d.ts`).
 - Usage and Google Chat webhook setup documentation.
 
+### Fixed
+
+- `logger` now reports an `Error` passed as the first argument with its name, message and stack instead of `String(err)`.
+
 ---
