@@ -22,5 +22,7 @@
 - `logger` now reports an `Error` passed as the first argument with its name, message and stack instead of `String(err)`.
 - A long alert title no longer evicts the alert body: the app name and title are each capped at 200 characters.
 - Alert header labels now replace Chat markup characters (`*_~<>`) with lookalike characters instead of removing them, so `my_app` no longer renders as `myapp`.
+- A bare query pair in the webhook URL no longer masks unrelated text in diagnostics.
+- A throwing webhook URL resolver is reported as `Webhook URL resolver failed: <cause>` with Chat URLs masked, instead of "not configured".
 
 ---

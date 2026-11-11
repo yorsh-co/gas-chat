@@ -404,17 +404,31 @@ class GasChat {
     return { ok: false, status: null, throttled: false, error };
   }
 
+  /** Text of a thrown value; never throws. */
+  private _errorText(e: unknown): string {
+    try {
+      if (e instanceof Error) {
+        return typeof e.message === 'string' ? e.message : String(e.message);
+      }
+      return String(e);
+    } catch {
+      return 'unknown error';
+    }
+  }
+
   /** Error text with any webhook URL masked, for diagnostics. */
   private _redactAny(e: unknown): string {
-    const text = e instanceof Error ? e.message : String(e);
+    const text = this._errorText(e);
     return this._resolvedUrl === null
-      ? text
+      ? this._maskChatUrls(text)
       : this._redact(text, this._resolvedUrl);
   }
 
   /**
    * Returns the webhook URL, or a failure result when it cannot be resolved.
    * A resolved URL is cached; failures are not, so the next call retries.
+   * Resolver errors mask full Chat URLs only, since no resolved URL is
+   * available to mask bare keys or tokens.
    */
   private _resolveUrl(): string | GasChatSendResult {
     if (this._resolvedUrl !== null) {
@@ -422,19 +436,23 @@ class GasChat {
     }
 
     let url: unknown = this._webhookUrl;
+    let error: string | null = null;
     if (typeof this._webhookUrl === 'function') {
       try {
         url = this._webhookUrl();
-      } catch (_err) {
+      } catch (e) {
         url = null;
+        const reason = this._maskChatUrls(this._errorText(e));
+        error = `Webhook URL resolver failed: ${reason}`;
       }
     }
 
-    let error: string | null = null;
-    if (typeof url !== 'string' || url === '') {
-      error = 'Webhook URL is not configured';
-    } else if (!GAS_CHAT_WEBHOOK_PATTERN.test(url)) {
-      error = 'Webhook URL is invalid';
+    if (error === null) {
+      if (typeof url !== 'string' || url === '') {
+        error = 'Webhook URL is not configured';
+      } else if (!GAS_CHAT_WEBHOOK_PATTERN.test(url)) {
+        error = 'Webhook URL is invalid';
+      }
     }
     if (error !== null || typeof url !== 'string') {
       console.warn(`[GasChat] ${error}`);
@@ -450,7 +468,11 @@ class GasChat {
     let out = text.split(url).join('[redacted]');
     const query = url.slice(url.indexOf('?') + 1);
     for (const pair of query.split('&')) {
-      const value = pair.slice(pair.indexOf('=') + 1);
+      const eq = pair.indexOf('=');
+      if (eq === -1) {
+        continue;
+      }
+      const value = pair.slice(eq + 1);
       if (value === '') {
         continue;
       }
@@ -464,7 +486,12 @@ class GasChat {
         // Malformed escape: the raw value is already masked.
       }
     }
-    return out.replace(
+    return this._maskChatUrls(out);
+  }
+
+  /** Masks any Google Chat URL in `text`. */
+  private _maskChatUrls(text: string): string {
+    return text.replace(
       /https:\/\/chat\.googleapis\.com[^\s"'<>)]*/g,
       '[redacted]',
     );

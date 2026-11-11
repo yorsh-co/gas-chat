@@ -110,13 +110,6 @@ describe('webhook resolution', () => {
   });
 
   it.each([
-    [
-      'throws',
-      () => {
-        throw new Error('boom test-token');
-      },
-      'Webhook URL is not configured',
-    ],
     ['returns null', () => null, 'Webhook URL is not configured'],
     ['returns undefined', () => undefined, 'Webhook URL is not configured'],
     ['returns an empty string', () => '', 'Webhook URL is not configured'],
@@ -148,6 +141,85 @@ describe('webhook resolution', () => {
       expectNoLeak(mocks, result);
     },
   );
+
+  it('reports a throwing resolver with its masked cause', () => {
+    const { chat, mocks } = setup({
+      webhookUrl: () => {
+        throw new Error(
+          'no prop at https://chat.googleapis.com/v1/spaces/X/messages?key=k&token=t',
+        );
+      },
+    });
+    const result = chat.send('hi');
+    const error = 'Webhook URL resolver failed: no prop at [redacted]';
+    expect(result).toEqual({
+      ok: false,
+      status: null,
+      throttled: false,
+      error,
+    });
+    expect(mocks.console.warn).toHaveBeenCalledTimes(1);
+    expect(mocks.console.warn.mock.calls[0]?.[0]).toBe(`[GasChat] ${error}`);
+    expect(mocks.UrlFetchApp.fetch).not.toHaveBeenCalled();
+  });
+
+  it('reports an unprintable thrown value from the resolver', () => {
+    const { chat } = setup({
+      webhookUrl: () => {
+        throw Object.create(null);
+      },
+    });
+    expect(chat.send('hi')).toEqual({
+      ok: false,
+      status: null,
+      throttled: false,
+      error: 'Webhook URL resolver failed: unknown error',
+    });
+  });
+
+  it('retries a throwing resolver on the next call', () => {
+    let calls = 0;
+    const { chat, mocks } = setup({
+      webhookUrl: () => {
+        calls += 1;
+        throw new Error('nope');
+      },
+    });
+    const first = chat.send('a');
+    const second = chat.send('b');
+    expect(calls).toBe(2);
+    expect(first.error).toBe('Webhook URL resolver failed: nope');
+    expect(second.error).toBe('Webhook URL resolver failed: nope');
+    expect(mocks.UrlFetchApp.fetch).not.toHaveBeenCalled();
+  });
+
+  it('reports an Error whose message getter throws', () => {
+    const { chat } = setup({
+      webhookUrl: () => {
+        const err = new Error('x');
+        Object.defineProperty(err, 'message', {
+          get() {
+            throw new Error('boom');
+          },
+        });
+        throw err;
+      },
+    });
+    expect(chat.send('hi').error).toBe(
+      'Webhook URL resolver failed: unknown error',
+    );
+  });
+
+  it('reports an Error whose message is not a string', () => {
+    const { chat } = setup({
+      webhookUrl: () => {
+        const err = new Error('x');
+        Object.defineProperty(err, 'message', { value: 42 });
+        throw err;
+      },
+    });
+    expect(chat.send('hi').error).toBe('Webhook URL resolver failed: 42');
+  });
 
   it('does not cache a failure and retries on the next call', () => {
     let url: string | null = null;
@@ -316,6 +388,40 @@ describe('send redaction', () => {
     const seen = JSON.stringify([mocks.console.warn.mock.calls, result]);
     expect(seen).not.toContain('to+ken=');
     expect(seen).not.toContain('k/ey');
+  });
+
+  it('ignores a bare query pair without a value', () => {
+    const { chat, mocks } = setup({ webhookUrl: `${WEBHOOK_URL}&v` });
+    mocks.UrlFetchApp.fetch
+      .mockReturnValueOnce({
+        getResponseCode: () => 400,
+        getContentText: () => 'invalid value test-token',
+      })
+      .mockImplementationOnce(() => {
+        throw new Error('invalid value test-token');
+      });
+    const first = chat.send('hi');
+    const second = chat.send('hi again');
+    const warnings = mocks.console.warn.mock.calls.map((c) => String(c[0]));
+    expect(warnings[0]).toContain('invalid value [redacted]');
+    expect(warnings[1]).toContain('invalid value [redacted]');
+    expect(second.error).toContain('invalid value [redacted]');
+    expectNoLeak(mocks, first);
+    expectNoLeak(mocks, second);
+  });
+
+  it('masks Chat URLs in a cache error before the URL is resolved', () => {
+    const { chat, mocks } = setup();
+    mocks.CacheService.getScriptCache.mockImplementationOnce(() => {
+      throw new Error(
+        'boom https://chat.googleapis.com/v1/spaces/X/messages?key=k&token=t',
+      );
+    });
+    chat.notifyError(new Error('x'));
+    const warning = String(mocks.console.warn.mock.calls[0]?.[0]);
+    expect(warning).toContain('[redacted]');
+    expect(warning).not.toContain('token=t');
+    expect(warning).not.toContain('key=k');
   });
 
   it('masks a threadKey-appended URL in a non-2xx body', () => {
