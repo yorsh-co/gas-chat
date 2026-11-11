@@ -318,6 +318,26 @@ describe('send redaction', () => {
     expect(seen).not.toContain('k/ey');
   });
 
+  it('ignores a bare query pair without a value', () => {
+    const { chat, mocks } = setup({ webhookUrl: `${WEBHOOK_URL}&v` });
+    mocks.UrlFetchApp.fetch
+      .mockReturnValueOnce({
+        getResponseCode: () => 400,
+        getContentText: () => 'invalid value test-token',
+      })
+      .mockImplementationOnce(() => {
+        throw new Error('invalid value test-token');
+      });
+    const first = chat.send('hi');
+    const second = chat.send('hi again');
+    const warnings = mocks.console.warn.mock.calls.map((c) => String(c[0]));
+    expect(warnings[0]).toContain('invalid value [redacted]');
+    expect(warnings[1]).toContain('invalid value [redacted]');
+    expect(second.error).toContain('invalid value [redacted]');
+    expectNoLeak(mocks, first);
+    expectNoLeak(mocks, second);
+  });
+
   it('masks a threadKey-appended URL in a non-2xx body', () => {
     const { chat, mocks } = setup({ webhookUrl: WEBHOOK_URL, threadKey: 't' });
     mocks.UrlFetchApp.fetch.mockReturnValueOnce({

@@ -398,7 +398,11 @@ class GasChat {
     let out = text.split(url).join('[redacted]');
     const query = url.slice(url.indexOf('?') + 1);
     for (const pair of query.split('&')) {
-      const value = pair.slice(pair.indexOf('=') + 1);
+      const eq = pair.indexOf('=');
+      if (eq === -1) {
+        continue;
+      }
+      const value = pair.slice(eq + 1);
       if (value === '') {
         continue;
       }
