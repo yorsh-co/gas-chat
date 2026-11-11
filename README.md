@@ -4,6 +4,7 @@
 
 ## Google Chat alerts and messages for Google Apps Script through an incoming webhook.
 
+> [!NOTE]
 > The goal of this project is to make posting to Google Chat from Apps Script safe by default: alerts that never throw, duplicates that are throttled, and a webhook URL that never leaks into logs or results.
 
 `GasChat` sends text and cards (`cardsV2`) to a Google Chat space through an [incoming webhook](https://developers.google.com/workspace/chat/quickstart/webhooks), optionally inside a thread. Incoming webhooks are outbound only and need no OAuth client or service account, only a URL created in the space.
@@ -89,7 +90,7 @@ Your Google Workspace admin must allow Chat incoming webhooks. See [Google Chat 
 
 ### Peer Dependencies
 
-None. gas-error and gas-logger integrate structurally, so load order is free.
+None. gas-error and gas-logger integrate structurally, so there is no order constraint between the gas-* libraries. `gas-chat` must load before any top-level construction; see the [file push order](#file-push-order).
 
 ## Quick Start
 
@@ -171,7 +172,7 @@ const chat = new GasChat({
 });
 ```
 
-The webhook URL can be a string or a resolver. A resolver runs on first send per instance and the result is cached. Reading it from Script Properties (`GAS_CHAT_WEBHOOK_URL`) keeps the credential out of source.
+The webhook URL can be a string or a resolver. A resolver runs on send and a resolved URL is cached per instance. A failed or empty resolution is not cached and is retried on the next send. Reading it from Script Properties (`GAS_CHAT_WEBHOOK_URL`) keeps the credential out of source.
 
 ## Setup instructions with `clasp`
 
@@ -353,7 +354,7 @@ try {
 }
 ```
 
-The alert is titled `Unexpected error` and contains the message, the stack and the `context` pairs. Non-`Error` values are stringified. A `context` that is not a plain object (a non-object, an array or a boxed primitive) is ignored. For an `Error` subclass, `name` is added to the context. `notifyError` never throws; it returns the [result](#read-the-result).
+The alert is titled `Unexpected error` and contains the message, the stack and the `context` pairs. Non-`Error` values are stringified. A non-object, array or boxed-primitive `context` is ignored. For an `Error` subclass, `name` is added to the context. `notifyError` never throws; it returns the [result](#read-the-result).
 
 ### Guard an entry point
 
@@ -392,8 +393,10 @@ const chat = new GasChat({
 
 const log = chat.logger(
   new GasLogger({
-    spreadsheet: () => SpreadsheetApp.getActiveSpreadsheet(),
-    sheetName: 'Logs',
+    sheetConfig: {
+      spreadsheet: () => SpreadsheetApp.getActiveSpreadsheet(),
+      sheetName: 'Logs',
+    },
   }),
 );
 
@@ -456,8 +459,10 @@ reqLog.error('Lookup failed', { orderId: 1042, reqId });
 ```js
 const log = chat.logger(
   new GasLogger({
-    spreadsheet: () => SpreadsheetApp.getActiveSpreadsheet(),
-    sheetName: 'Logs',
+    sheetConfig: {
+      spreadsheet: () => SpreadsheetApp.getActiveSpreadsheet(),
+      sheetName: 'Logs',
+    },
     flushThreshold: 25,
     bypassBufferLevels: ['error', 'fatal'],
   }),
@@ -521,7 +526,9 @@ chat.run('syncOrders', () => {
 Choose one path. Either log and rethrow and let `run` alert, using a logger that is not decorated or a level that is not alerted:
 
 ```js
-catch (err) {
+try {
+  /* ... */
+} catch (err) {
   log.warn('Sync failed', { error: err }); // logged only
   throw err; // alerted by run
 }
@@ -530,7 +537,9 @@ catch (err) {
 Or log with the decorated logger without rethrowing:
 
 ```js
-catch (err) {
+try {
+  /* ... */
+} catch (err) {
   log.error('Sync failed', { error: err }); // logged and alerted
 }
 ```
@@ -557,7 +566,7 @@ Error: Request timed out
 
 - The header is `🚨 *App* · title`. The app name and the title are cut to 200 characters.
 - The message is a code span on its own line.
-- Each context entry is a `• key: value` line. At most 20 entries are shown and each value is cut to 500 characters. The rest is summarised as `…and N more`.
+- Each context entry is a `•` line with the key and the value each in a code span. At most 20 entries are shown and each value is cut to 500 characters. The rest is summarised as `…and N more`.
 - The time line is followed by the stack in a fenced block, when there is one.
 - The whole text stays within 4096 characters. Text that is cut ends with `…[truncated]`.
 
@@ -628,8 +637,10 @@ const chat = new GasChat({
 
 const log = chat.logger(
   new GasLogger({
-    spreadsheet: () => SpreadsheetApp.getActiveSpreadsheet(),
-    sheetName: 'Logs',
+    sheetConfig: {
+      spreadsheet: () => SpreadsheetApp.getActiveSpreadsheet(),
+      sheetName: 'Logs',
+    },
     flushThreshold: 25,
     bypassBufferLevels: ['error', 'fatal'],
   }),
