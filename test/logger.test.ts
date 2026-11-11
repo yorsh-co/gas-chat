@@ -282,9 +282,49 @@ describe('logger', () => {
       const log = chat.logger(inner);
       const descriptor = Object.getOwnPropertyDescriptor(log, 'error');
       expect(descriptor?.configurable).toBe(true);
-      expect(descriptor?.value).not.toBe(inner.error);
+      expect(descriptor?.value).toBe(log.error);
       descriptor?.value('x');
       expect(mocks.UrlFetchApp.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('snapshots levels at creation', () => {
+      const { chat, mocks } = setup();
+      const levels = ['error'];
+      const log = chat.logger({ error: vi.fn(), warn: vi.fn() }, { levels });
+      levels.push('warn');
+      log.warn('x');
+      expect(mocks.UrlFetchApp.fetch).not.toHaveBeenCalled();
+    });
+
+    it('passes the levels snapshot to child loggers', () => {
+      const { chat, mocks } = setup();
+      const levels = ['error'];
+      const log = chat.logger(fakeLogger().logger as never, { levels }) as {
+        child: (b: unknown) => { warn: (m: string) => void };
+      };
+      levels.push('warn');
+      log.child({}).warn('x');
+      expect(mocks.UrlFetchApp.fetch).not.toHaveBeenCalled();
+    });
+
+    it('returns stable method identity', () => {
+      const { chat } = setup();
+      const log = chat.logger({ error: vi.fn(), info: vi.fn() });
+      expect(log.info).toBe(log.info);
+      expect(log.error).toBe(log.error);
+    });
+
+    it('reflects a reassigned inner method', () => {
+      const { chat } = setup();
+      const first = vi.fn();
+      const second = vi.fn();
+      const inner = { error: vi.fn(), info: first };
+      const log = chat.logger(inner);
+      log.info('a');
+      inner.info = second;
+      log.info('b');
+      expect(first).toHaveBeenCalledTimes(1);
+      expect(second).toHaveBeenCalledTimes(1);
     });
 
     it('alerts on a frozen class-instance inner', () => {
