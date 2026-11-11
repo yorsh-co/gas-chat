@@ -13,4 +13,8 @@
 - Peer type declarations (`peer/gas-chat.peer.types.d.ts`).
 - Usage and Google Chat webhook setup documentation.
 
+### Fixed
+
+- A long alert title no longer evicts the alert body: the app name and title are each capped at 200 characters.
+
 ---
