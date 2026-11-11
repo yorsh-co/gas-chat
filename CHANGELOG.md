@@ -11,7 +11,7 @@
 - `logger` to decorate GasLogger, GasError or `console` so selected levels also raise a Chat alert.
 - Duplicate alert throttling through `CacheService`, configurable with `throttleSeconds`.
 - Peer type declarations (`peer/gas-chat.peer.types.d.ts`).
-- Usage and Google Chat webhook setup documentation.
+- Usage, gas-logger and gas-error integration, and Google Chat webhook setup documentation.
 
 ### Fixed
 
