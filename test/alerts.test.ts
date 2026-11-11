@@ -21,18 +21,34 @@ describe('notifyError', () => {
     expect(sentText(mocks).split('\n')).not.toContain('``');
   });
 
-  it.each([['abc'], [['a', 'b']], [null]])(
-    'ignores a non-object context (%#)',
-    (context) => {
-      const { chat, mocks } = setup();
-      chat.notifyError(new Error('x'), context as never);
-      expect(mocks.UrlFetchApp.fetch).toHaveBeenCalledTimes(1);
-      const text = sentText(mocks);
-      expect(text).toContain('`x`');
-      expect(text).not.toContain('`0`');
-      expect(text).not.toContain('`1`');
-    },
-  );
+  it.each([
+    ['abc'],
+    [['a', 'b']],
+    [null],
+    [new String('abc')],
+    [new Number(1)],
+    [new Boolean(true)],
+  ])('ignores a non-object context (%#)', (context) => {
+    const { chat, mocks } = setup();
+    chat.notifyError(new Error('x'), context as never);
+    expect(mocks.UrlFetchApp.fetch).toHaveBeenCalledTimes(1);
+    const text = sentText(mocks);
+    expect(text).toContain('`x`');
+    expect(text).not.toContain('`0`');
+    expect(text).not.toContain('`1`');
+    expect(text).not.toContain('`2`');
+  });
+
+  it('accepts a class-instance context', () => {
+    const { chat, mocks } = setup();
+    chat.notifyError(
+      new Error('x'),
+      new (class {
+        a = 1;
+      })() as never,
+    );
+    expect(sentText(mocks)).toContain('• `a`: `1`');
+  });
 
   it('sends a formatted alert', () => {
     const { chat, mocks } = setup({ appName: 'Orders' });
