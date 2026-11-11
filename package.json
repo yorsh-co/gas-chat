@@ -21,7 +21,8 @@
   "gasdev": {
     "loadOrder": [
       "gas-chat.types.ts",
-      "gas-chat.constants.ts"
+      "gas-chat.constants.ts",
+      "gas-chat.class.ts"
     ],
     "release": {
       "githubRelease": true

@@ -12,7 +12,10 @@ export function createMocks() {
   const fetch = vi.fn((url: string, params?: unknown) => {
     void url;
     void params;
-    return { getResponseCode: () => 200, getContentText: () => '{}' };
+    return {
+      getResponseCode: (): number => 200,
+      getContentText: (): string => '{}',
+    };
   });
 
   const cache = {

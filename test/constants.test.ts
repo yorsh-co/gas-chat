@@ -40,6 +40,36 @@ describe('GAS_CHAT_WEBHOOK_PATTERN', () => {
       'https://chat.googleapis.com/v1/spaces/AAAA/members?key=k&token=t',
     ],
     ['an empty string', ''],
+    ['a fragment', `${WEBHOOK_URL}#frag`],
+    ['an existing threadKey', `${WEBHOOK_URL}&threadKey=x`],
+    [
+      'an existing messageReplyOption',
+      `messageReplyOption=x&${WEBHOOK_URL.split('?')[1]}`.replace(
+        /^/,
+        WEBHOOK_URL.split('?')[0] + '?',
+      ),
+    ],
+    [
+      'whitespace in the token',
+      'https://chat.googleapis.com/v1/spaces/AAAA/messages?key=k&token=t t',
+    ],
+    ['a newline after the URL', `${WEBHOOK_URL}\nx`],
+    [
+      'key and token only after a fragment',
+      'https://chat.googleapis.com/v1/spaces/AAAA/messages?a=b#key=k&token=t',
+    ],
+    [
+      'a userinfo host',
+      'https://chat.googleapis.com@evil.example/v1/spaces/AAAA/messages?key=k&token=t',
+    ],
+    [
+      'a suffixed host',
+      'https://chat.googleapis.com.evil.com/v1/spaces/AAAA/messages?key=k&token=t',
+    ],
+    [
+      'a slash in the space id',
+      'https://chat.googleapis.com/v1/spaces/A/B/messages?key=k&token=t',
+    ],
   ])('rejects %s', (_label, url) => {
     expect(pattern.test(url)).toBe(false);
   });

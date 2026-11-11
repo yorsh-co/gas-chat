@@ -14,6 +14,17 @@ export interface GasChatExports {
   GAS_CHAT_DEFAULT_LOG_LEVELS: ReadonlyArray<string>;
   GAS_CHAT_CACHE_PREFIX: string;
   GAS_CHAT_TRUNCATION_MARKER: string;
+  GasChat: new (options: Record<string, unknown>) => GasChatInstance;
+}
+
+/** Loose test-side view of the `GasChat` instance. */
+export interface GasChatInstance {
+  send(message: unknown): {
+    ok: boolean;
+    status: number | null;
+    throttled: boolean;
+    error?: string;
+  };
 }
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -31,13 +42,14 @@ const load = createGasLoader<GasChatExports>({
     'GAS_CHAT_DEFAULT_LOG_LEVELS',
     'GAS_CHAT_CACHE_PREFIX',
     'GAS_CHAT_TRUNCATION_MARKER',
+    'GasChat',
   ],
   root: ROOT,
 });
 
 /**
  * Evaluates the sources in a fresh context wired to fake Apps Script
- * services, so each call is isolated from every other. `Error` is shared
+ * services, so each call is isolated from every other. `Error` and `TypeError` are shared
  * with the host so `instanceof Error` holds across the context boundary.
  */
 export function loadGasChat(overrides: Partial<Mocks> = {}): {
@@ -48,7 +60,14 @@ export function loadGasChat(overrides: Partial<Mocks> = {}): {
   const { UrlFetchApp, CacheService, Utilities, console } = mocks;
 
   return {
-    exports: load({ UrlFetchApp, CacheService, Utilities, console, Error }),
+    exports: load({
+      UrlFetchApp,
+      CacheService,
+      Utilities,
+      console,
+      Error,
+      TypeError,
+    }),
     mocks,
   };
 }

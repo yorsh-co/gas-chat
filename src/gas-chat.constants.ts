@@ -1,6 +1,6 @@
 /* Accepts only Chat incoming webhook URLs, so alert data cannot reach another host */
 const GAS_CHAT_WEBHOOK_PATTERN =
-  /^https:\/\/chat\.googleapis\.com\/v1\/spaces\/[^/?#]+\/messages\?(?=(?:[^#]*&)?key=[^&#]+)(?=(?:[^#]*&)?token=[^&#]+)/;
+  /^https:\/\/chat\.googleapis\.com\/v1\/spaces\/[A-Za-z0-9_-]+\/messages\?(?!(?:[^#\s]*&)?(?:threadKey|messageReplyOption)=)(?=(?:[^#\s]*&)?key=[^&#\s]+)(?=(?:[^#\s]*&)?token=[^&#\s]+)[^#\s]*$/;
 
 /* Chat's limit for the `text` field, in characters */
 const GAS_CHAT_MAX_TEXT_LENGTH = 4096;
