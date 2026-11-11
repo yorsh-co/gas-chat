@@ -25,5 +25,6 @@
 - A bare query pair in the webhook URL no longer masks unrelated text in diagnostics.
 - A throwing webhook URL resolver is reported as `Webhook URL resolver failed: <cause>` with Chat URLs masked, instead of "not configured".
 - `notifyError` ignores a non-object `context` (string, array or `null`) instead of spreading it into the alert.
+- `notifyError` ignores a boxed `String`, `Number` or `Boolean` `context` instead of spreading its characters into the alert.
 
 ---
