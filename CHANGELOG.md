@@ -13,4 +13,8 @@
 - Peer type declarations (`peer/gas-chat.peer.types.d.ts`).
 - Usage and Google Chat webhook setup documentation.
 
+### Fixed
+
+- Throttle key now includes the webhook, app name and thread, so instances sharing the script cache no longer suppress each other's alerts.
+
 ---
