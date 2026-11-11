@@ -13,4 +13,9 @@
 - Peer type declarations (`peer/gas-chat.peer.types.d.ts`).
 - Usage and Google Chat webhook setup documentation.
 
+### Fixed
+
+- A bare query pair in the webhook URL no longer masks unrelated text in diagnostics.
+- A throwing webhook URL resolver is reported as `Webhook URL resolver failed: <cause>` with Chat URLs masked, instead of "not configured".
+
 ---
