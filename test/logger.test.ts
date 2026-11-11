@@ -246,6 +246,47 @@ describe('logger', () => {
       expect(Object.keys(log)).toEqual(['error', 'x']);
     });
 
+    it('rejects non-configurable defineProperty without mutating inner', () => {
+      const { chat } = setup();
+      const inner = { error: vi.fn() } as { error: () => void; x?: number };
+      const log = chat.logger(inner);
+      expect(() =>
+        Object.defineProperty(log, 'x', { value: 1, configurable: false }),
+      ).toThrow(TypeError);
+      expect(inner.x).toBeUndefined();
+    });
+
+    it('works on a frozen callable logger', () => {
+      const { chat, mocks } = setup();
+      const fn = vi.fn();
+      const error = vi.fn();
+      const inner = Object.freeze(Object.assign(fn, { error }));
+      const log = chat.logger(inner);
+      log.error('x');
+      expect(error).toHaveBeenCalledWith('x');
+      expect(mocks.UrlFetchApp.fetch).toHaveBeenCalledTimes(1);
+      (log as unknown as (m: string) => void)('hi');
+      expect(fn).toHaveBeenCalledWith('hi');
+      expect(Object.keys(log)).toEqual(Object.keys(inner));
+    });
+
+    it('supports level methods defined as getters', () => {
+      const { chat, mocks } = setup();
+      const errorFn = vi.fn();
+      const inner = {} as { error: () => void };
+      Object.defineProperty(inner, 'error', {
+        get: () => errorFn,
+        enumerable: true,
+      });
+      const log = chat.logger(inner);
+      log.error();
+      expect(errorFn).toHaveBeenCalledTimes(1);
+      expect(mocks.UrlFetchApp.fetch).toHaveBeenCalledTimes(1);
+      expect(Object.getOwnPropertyDescriptor(log, 'error')?.configurable).toBe(
+        true,
+      );
+    });
+
     it('forwards the prototype of inner', () => {
       const { chat } = setup();
       class Base {

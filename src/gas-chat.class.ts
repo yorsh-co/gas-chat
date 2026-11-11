@@ -290,7 +290,9 @@ class GasChat {
       set: (_obj, prop, value) => Reflect.set(inner, prop, value),
       deleteProperty: (_obj, prop) => Reflect.deleteProperty(inner, prop),
       defineProperty: (_obj, prop, descriptor) =>
-        Reflect.defineProperty(inner, prop, descriptor),
+        descriptor.configurable === false
+          ? false
+          : Reflect.defineProperty(inner, prop, descriptor),
       getPrototypeOf: () => Reflect.getPrototypeOf(inner),
       preventExtensions: () => false,
       ownKeys: () => Reflect.ownKeys(inner),
