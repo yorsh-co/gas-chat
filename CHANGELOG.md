@@ -13,4 +13,8 @@
 - Peer type declarations (`peer/gas-chat.peer.types.d.ts`).
 - Usage and Google Chat webhook setup documentation.
 
+### Fixed
+
+- `notifyError` ignores a non-object `context` (string, array or `null`) instead of spreading it into the alert.
+
 ---
