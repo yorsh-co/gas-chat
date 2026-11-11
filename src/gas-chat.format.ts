@@ -8,9 +8,23 @@ function _gasChatInline(text: string): string {
   return text.replace(/\r\n|\r|\n/g, ' ');
 }
 
-/** Cleans a developer or log supplied label: no line breaks or Chat markup. */
+const GAS_CHAT_MARKUP_LOOKALIKES: Record<string, string> = {
+  '*': '∗',
+  _: 'ˍ',
+  '~': '˜',
+  '<': '‹',
+  '>': '›',
+};
+
+/**
+ * Cleans a developer or log supplied label: no line breaks, and Chat markup
+ * characters are replaced by single-unit lookalikes rather than removed.
+ */
 function _gasChatLabel(text: string): string {
-  return _gasChatInert(_gasChatInline(text)).replace(/[*_~<>]/g, '');
+  return _gasChatInert(_gasChatInline(text)).replace(
+    /[*_~<>]/g,
+    (char) => GAS_CHAT_MARKUP_LOOKALIKES[char] ?? char,
+  );
 }
 
 /** Slices to `max` characters without splitting a surrogate pair. */
