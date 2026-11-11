@@ -119,13 +119,7 @@ class GasChat {
     const payload: { text?: string; cardsV2?: ReadonlyArray<GasChatCardV2> } =
       {};
     if (hasText) {
-      payload.text =
-        text.length > GAS_CHAT_MAX_TEXT_LENGTH
-          ? text.slice(
-              0,
-              GAS_CHAT_MAX_TEXT_LENGTH - GAS_CHAT_TRUNCATION_MARKER.length,
-            ) + GAS_CHAT_TRUNCATION_MARKER
-          : text;
+      payload.text = _gasChatCut(text, GAS_CHAT_MAX_TEXT_LENGTH);
     }
     if (hasCards) {
       payload.cardsV2 = cardsV2;
@@ -253,13 +247,19 @@ class GasChat {
         }
         const method = value as (...args: unknown[]) => unknown;
         if (typeof prop === 'string' && levels.indexOf(prop) !== -1) {
-          return (msg: string, meta?: Record<string, unknown>) => {
-            method.call(inner, msg, meta);
+          return (...args: unknown[]) => {
+            const result = method.apply(inner, args);
             try {
-              this._alert(this._alertFromLog(msg, meta));
+              this._alert(
+                this._alertFromLog(
+                  args[0] as string,
+                  args[1] as Record<string, unknown> | undefined,
+                ),
+              );
             } catch (e) {
               this._alertFailure(e);
             }
+            return result;
           };
         }
         if (prop === 'child') {

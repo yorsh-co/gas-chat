@@ -49,8 +49,8 @@ info('live send', ({ prefix }) => {
   const chat = new GasChat({ webhookUrl: url, appName: 'gas-chat gas-test' });
   const sent = chat.send(`gas-chat gas-test ${prefix}`);
   const error = new Error(`gas-chat gas-test ${prefix}`);
-  chat.notifyError(error);
+  const first = chat.notifyError(error);
   const repeat = chat.notifyError(error);
 
-  return `send status ${String(sent.status)}; repeated alert throttled: ${String(repeat.throttled)}`;
+  return `send status ${String(sent.status)}; alert ok ${String(first.ok)} status ${String(first.status)}; repeated alert throttled: ${String(repeat.throttled)}`;
 });

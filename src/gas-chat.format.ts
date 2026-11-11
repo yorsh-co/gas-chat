@@ -10,7 +10,7 @@ function _gasChatInline(text: string): string {
 
 /** Cleans a developer or log supplied label: no line breaks or Chat markup. */
 function _gasChatLabel(text: string): string {
-  return _gasChatInline(text).replace(/[*_~<>]/g, '');
+  return _gasChatInert(_gasChatInline(text)).replace(/[*_~<>]/g, '');
 }
 
 /** Slices to `max` characters without splitting a surrogate pair. */
@@ -93,7 +93,7 @@ function _gasChatFormatAlert(
   let used = header.length;
 
   const messageRoom = limit - used - reserve - 3;
-  if (messageRoom > 0) {
+  if (messageRoom > 0 && alert.message !== '') {
     const message = _gasChatCut(
       _gasChatInert(_gasChatInline(alert.message)),
       messageRoom,

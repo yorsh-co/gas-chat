@@ -144,7 +144,7 @@ describe('logger', () => {
       mocks.console as unknown as { error(m: string): void },
     );
     log.error('oops');
-    expect(mocks.console.error).toHaveBeenCalledWith('oops', undefined);
+    expect(mocks.console.error).toHaveBeenCalledWith('oops');
     expect(mocks.UrlFetchApp.fetch).toHaveBeenCalledTimes(1);
   });
 
@@ -175,6 +175,22 @@ describe('logger', () => {
       ),
     ).not.toThrow();
     expect(calls).toHaveLength(1);
+  });
+
+  it('forwards every argument and returns the inner result', () => {
+    const { chat } = setup();
+    const received: unknown[][] = [];
+    const inner = {
+      error: (...args: unknown[]) => {
+        received.push(args);
+        return 'result';
+      },
+    };
+    const wrapped = chat.logger(inner) as unknown as {
+      error(...args: unknown[]): unknown;
+    };
+    expect(wrapped.error('m', { a: 1 }, 'extra', 3)).toBe('result');
+    expect(received).toEqual([['m', { a: 1 }, 'extra', 3]]);
   });
 
   it('validates arguments', () => {

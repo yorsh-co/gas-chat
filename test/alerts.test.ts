@@ -15,6 +15,12 @@ const sentText = (mocks: ReturnType<typeof setup>['mocks'], call = 0) =>
   ).text as string;
 
 describe('notifyError', () => {
+  it.each([[new Error()], ['']])('omits an empty message line (%#)', (err) => {
+    const { chat, mocks } = setup();
+    chat.notifyError(err);
+    expect(sentText(mocks).split('\n')).not.toContain('``');
+  });
+
   it('sends a formatted alert', () => {
     const { chat, mocks } = setup({ appName: 'Orders' });
     const result = chat.notifyError(new Error('boom'), { source: 's' });

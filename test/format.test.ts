@@ -31,6 +31,17 @@ describe('_gasChatFormatAlert', () => {
     );
   });
 
+  it('neutralises backticks in the title', () => {
+    const text = format({ title: 'a`b' });
+    expect(text.split('\n')[0]).toBe('🚨 *Orders* · aˋb');
+  });
+
+  it('omits the message line when the message is empty', () => {
+    const lines = format({ message: '' }).split('\n');
+    expect(lines).not.toContain('``');
+    expect(lines[1]).toMatch(/^• time:/);
+  });
+
   it('strips asterisks from developer-supplied names', () => {
     expect(format({ title: 'a*b' }, '*App*').split('\n')[0]).toBe(
       '🚨 *App* · ab',

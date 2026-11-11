@@ -225,6 +225,21 @@ describe('send request', () => {
     expect(text.endsWith(exports.GAS_CHAT_TRUNCATION_MARKER)).toBe(true);
   });
 
+  it('does not split a surrogate pair at the cut point', () => {
+    const { chat, mocks, exports } = setup();
+    const keep =
+      exports.GAS_CHAT_MAX_TEXT_LENGTH -
+      exports.GAS_CHAT_TRUNCATION_MARKER.length;
+    chat.send('x'.repeat(keep - 1) + '😀'.repeat(50));
+    const params = mocks.UrlFetchApp.fetch.mock.calls[0]?.[1] as {
+      payload: string;
+    };
+    const text = (JSON.parse(params.payload) as { text: string }).text;
+    expect(text.length).toBeLessThanOrEqual(exports.GAS_CHAT_MAX_TEXT_LENGTH);
+    expect(text).not.toMatch(/[\ud800-\udbff](?![\udc00-\udfff])/);
+    expect(text.endsWith(exports.GAS_CHAT_TRUNCATION_MARKER)).toBe(true);
+  });
+
   it('keeps text of exactly the limit', () => {
     const { chat, mocks, exports } = setup();
     const text = 'x'.repeat(exports.GAS_CHAT_MAX_TEXT_LENGTH);
