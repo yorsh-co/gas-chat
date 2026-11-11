@@ -134,7 +134,7 @@ const withConsole = chat.logger(console, { levels: ['error'] });
 
 ### Throttling
 
-Alerts with the same title, message and first stack line are sent once per `throttleSeconds` (default 300, `0` disables, maximum 21600). The key is released when delivery fails, and cache errors fail open.
+Alerts with the same webhook, app name, thread, title, message and first stack line are sent once per `throttleSeconds` (default 300, `0` disables, maximum 21600). The key is released when delivery fails, and cache errors fail open.
 
 ## Limits
 

@@ -302,6 +302,10 @@ class GasChat {
   /** Sends an alert, suppressing duplicates. Never throws. */
   private _alert(alert: GasChatAlert): GasChatSendResult {
     try {
+      const url = this._resolveUrl();
+      if (typeof url !== 'string') {
+        return url;
+      }
       const text = _gasChatFormatAlert(this._appName, alert, new Date());
       let cache: GoogleAppsScript.Cache.Cache | null = null;
       let key = '';
@@ -312,7 +316,12 @@ class GasChat {
             Utilities.base64EncodeWebSafe(
               Utilities.computeDigest(
                 Utilities.DigestAlgorithm.SHA_256,
-                _gasChatFingerprintSource(alert),
+                JSON.stringify([
+                  url,
+                  this._appName,
+                  this._threadKey ?? null,
+                  _gasChatFingerprintSource(alert),
+                ]),
                 Utilities.Charset.UTF_8,
               ),
             );

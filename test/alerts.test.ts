@@ -58,6 +58,64 @@ describe('notifyError', () => {
 });
 
 describe('throttle', () => {
+  const OTHER_URL = WEBHOOK_URL.replace(/spaces\/[^/]+/, 'spaces/OTHER');
+
+  it.each([
+    ['webhook', { webhookUrl: OTHER_URL }],
+    ['appName', { appName: 'Other' }],
+    ['threadKey', { threadKey: 'thread-b' }],
+  ])('does not suppress alerts that differ by %s', (_name, override) => {
+    const { exports, mocks } = loadGasChat();
+    const a = new exports.GasChat({
+      webhookUrl: WEBHOOK_URL,
+      threadKey: 'thread-a',
+    });
+    const b = new exports.GasChat({
+      webhookUrl: WEBHOOK_URL,
+      threadKey: 'thread-a',
+      ...override,
+    });
+    const err = new Error('boom');
+    expect(a.notifyError(err).throttled).toBe(false);
+    expect(b.notifyError(err).throttled).toBe(false);
+    expect(mocks.UrlFetchApp.fetch).toHaveBeenCalledTimes(2);
+    for (const [key] of mocks.cache.put.mock.calls) {
+      expect(key).not.toContain('test-token');
+      expect(key).not.toContain('test-key');
+      expect(key).not.toContain('chat.googleapis.com');
+    }
+  });
+
+  it('does not touch the cache when the URL cannot be resolved', () => {
+    const { exports, mocks } = loadGasChat();
+    const chat = new exports.GasChat({ webhookUrl: () => null });
+    const result = chat.notifyError(new Error('boom'));
+    expect(result).toMatchObject({ ok: false, throttled: false });
+    expect(result.error).toBe('Webhook URL is not configured');
+    expect(mocks.cache.put).not.toHaveBeenCalled();
+    expect(mocks.cache.get).not.toHaveBeenCalled();
+    expect(mocks.CacheService.getScriptCache).not.toHaveBeenCalled();
+    expect(mocks.Utilities.computeDigest).not.toHaveBeenCalled();
+  });
+
+  it('does not collide when fields contain the delimiter', () => {
+    const { exports, mocks } = loadGasChat();
+    const a = new exports.GasChat({
+      webhookUrl: WEBHOOK_URL,
+      appName: 'a|b',
+      threadKey: 'c',
+    });
+    const b = new exports.GasChat({
+      webhookUrl: WEBHOOK_URL,
+      appName: 'a',
+      threadKey: 'b|c',
+    });
+    const err = new Error('boom');
+    expect(a.notifyError(err).throttled).toBe(false);
+    expect(b.notifyError(err).throttled).toBe(false);
+    expect(mocks.UrlFetchApp.fetch).toHaveBeenCalledTimes(2);
+  });
+
   it('suppresses an identical second alert', () => {
     const { chat, mocks } = setup();
     const err = new Error('boom');

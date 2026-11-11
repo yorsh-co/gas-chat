@@ -4,7 +4,7 @@ interface GasChatOptions {
   webhookUrl: string | (() => string | null | undefined);
   /** Shown in alert headers. @default 'Apps Script' */
   appName?: string;
-  /** Suppress identical alerts for this many seconds; 0 disables. @default 300 */
+  /** Suppress identical alerts to the same webhook, app and thread for this many seconds; 0 disables. @default 300 */
   throttleSeconds?: number;
   /** Default thread for every message; per-message `threadKey` overrides. */
   threadKey?: string;
