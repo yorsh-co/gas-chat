@@ -11,6 +11,9 @@ const GAS_CHAT_MAX_CONTEXT_VALUE_LENGTH = 500;
 /* Most context entries rendered in an alert */
 const GAS_CHAT_MAX_CONTEXT_KEYS = 20;
 
+/* Longest rendered app name or alert title, in characters */
+const GAS_CHAT_MAX_LABEL_LENGTH = 200;
+
 /* Alert header name when `appName` is not provided */
 const GAS_CHAT_DEFAULT_APP_NAME = 'Apps Script';
 

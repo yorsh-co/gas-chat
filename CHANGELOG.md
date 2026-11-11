@@ -20,5 +20,6 @@
 - `logger()` snapshots `levels` at creation, including for child loggers.
 - Decorated logger methods keep a stable identity.
 - `logger` now reports an `Error` passed as the first argument with its name, message and stack instead of `String(err)`.
+- A long alert title no longer evicts the alert body: the app name and title are each capped at 200 characters.
 
 ---

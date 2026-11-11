@@ -81,13 +81,15 @@ function _gasChatFormatAlert(
   now: Date,
 ): string {
   const limit = GAS_CHAT_MAX_TEXT_LENGTH;
-  const header = `🚨 *${_gasChatLabel(appName)}* · ${_gasChatLabel(alert.title)}`;
+  const name = _gasChatCut(_gasChatLabel(appName), GAS_CHAT_MAX_LABEL_LENGTH);
+  const title = _gasChatCut(
+    _gasChatLabel(alert.title),
+    GAS_CHAT_MAX_LABEL_LENGTH,
+  );
+  const header = `🚨 *${name}* · ${title}`;
   const timeLine = `• time: \`${now.toISOString()}\``;
   // Room kept for the time line and a possible "…and N more" line.
   const reserve = 1 + timeLine.length + 1 + 30;
-  if (header.length + reserve > limit) {
-    return _gasChatCut(header, limit);
-  }
 
   const lines: string[] = [header];
   let used = header.length;

@@ -82,9 +82,16 @@ describe('_gasChatFormatAlert', () => {
   });
 
   it('omits the stack when it does not fit', () => {
-    const text = format({ title: 'T'.repeat(4040), stack: 'at f' });
-    expect(text.length).toBeLessThanOrEqual(exports.GAS_CHAT_MAX_TEXT_LENGTH);
-    expect(text).not.toContain('```');
+    const texts = Array.from({ length: 200 }, (_v, n) => {
+      const context = Object.fromEntries(
+        Array.from({ length: 20 }, (_k, i) => [`k${i}`, 'v'.repeat(300 + n)]),
+      );
+      return format({ context, stack: 'at f' });
+    });
+    for (const text of texts) {
+      expect(text.length).toBeLessThanOrEqual(exports.GAS_CHAT_MAX_TEXT_LENGTH);
+    }
+    expect(texts.some((text) => !text.includes('```'))).toBe(true);
   });
 
   it('strips markup and line breaks from title and appName', () => {
@@ -118,15 +125,33 @@ describe('_gasChatFormatAlert', () => {
 
   it('stays bounded and balanced for any header length', () => {
     const max = exports.GAS_CHAT_MAX_TEXT_LENGTH;
-    for (let n = 4040; n <= 4096; n += 1) {
+    const cap = exports.GAS_CHAT_MAX_LABEL_LENGTH;
+    // "🚨 *" + name + "* · " + title
+    const overhead = '🚨 *'.length + '* · '.length;
+    for (let n = cap - 5; n <= cap + 5; n += 1) {
       for (const text of [
         format({ title: 'T'.repeat(n), stack: 'at f\nat g' }),
         format({ title: 't', stack: 'at f\nat g' }, 'A'.repeat(n)),
+        format({ title: 'T'.repeat(n), stack: 'at f\nat g' }, 'A'.repeat(n)),
       ]) {
         expect(text.length).toBeLessThanOrEqual(max);
         expect(text.split('```').length % 2).toBe(1);
+        expect(text.split('\n')[0]?.length).toBeLessThanOrEqual(
+          2 * cap + overhead,
+        );
       }
     }
+  });
+
+  it('caps an oversized app name and title and keeps the time line', () => {
+    const cap = exports.GAS_CHAT_MAX_LABEL_LENGTH;
+    const marker = exports.GAS_CHAT_TRUNCATION_MARKER;
+    const label = (c: string): string => c.repeat(cap - marker.length) + marker;
+    const lines = format({ title: 'T'.repeat(5000) }, 'A'.repeat(5000)).split(
+      '\n',
+    );
+    expect(lines[0]).toBe(`🚨 *${label('A')}* · ${label('T')}`);
+    expect(lines).toContain('• time: `2026-01-02T03:04:05.000Z`');
   });
 
   it('does not split surrogate pairs when cutting', () => {
@@ -144,10 +169,20 @@ describe('_gasChatFormatAlert', () => {
     expect(format({ context: { bad } })).toContain('[unserialisable]');
   });
 
-  it('hard-cuts an oversized header', () => {
-    const text = format({ title: 'T'.repeat(10000) });
-    expect(text.length).toBe(exports.GAS_CHAT_MAX_TEXT_LENGTH);
-    expect(text.endsWith(exports.GAS_CHAT_TRUNCATION_MARKER)).toBe(true);
+  it('keeps the body when the title is oversized', () => {
+    const text = format({
+      title: 'T'.repeat(5000),
+      message: 'm',
+      context: { a: 1 },
+      stack: 'Error: m\n    at f (a.gs:1)',
+    });
+    const lines = text.split('\n');
+    expect(lines[0]).toContain(exports.GAS_CHAT_TRUNCATION_MARKER);
+    expect(text).toContain('`m`');
+    expect(text).toContain('• `a`: `1`');
+    expect(text).toContain('• time: `2026-01-02T03:04:05.000Z`');
+    expect(text).toContain('```\nError: m\n    at f (a.gs:1)\n```');
+    expect(text.length).toBeLessThanOrEqual(exports.GAS_CHAT_MAX_TEXT_LENGTH);
   });
 
   it('caps context keys and reports the rest', () => {
