@@ -215,7 +215,8 @@ class GasChat {
    *
    * @param inner - Any object with an `error` method, such as GasLogger or `console`.
    * @param options - See {@link GasChatLoggerOptions}.
-   * @returns A proxy with the same shape as `inner`.
+   * @returns A proxy with the same shape as `inner`. Freezing or sealing the
+   * proxy and non-configurable `defineProperty` calls are unsupported.
    * @throws {TypeError} When `inner` or `levels` is invalid.
    */
   logger<T extends GasChatLoggerTarget>(
@@ -229,25 +230,41 @@ class GasChat {
     ) {
       throw new TypeError('[GasChat] logger target needs an error() method');
     }
-    const levels = options.levels ?? GAS_CHAT_DEFAULT_LOG_LEVELS;
+    const requested = options.levels ?? GAS_CHAT_DEFAULT_LOG_LEVELS;
     if (
-      !Array.isArray(levels) ||
-      levels.length === 0 ||
-      levels.some((level) => typeof level !== 'string')
+      !Array.isArray(requested) ||
+      requested.length === 0 ||
+      requested.some((level) => typeof level !== 'string')
     ) {
       throw new TypeError('[GasChat] levels must be a non-empty string array');
     }
+    const levels = requested.slice();
 
     const target = inner as unknown as Record<string, unknown>;
-    return new Proxy(inner, {
+    // Reuses a wrapper while the inner method is unchanged, for stable identity.
+    const wrappers = new Map<
+      PropertyKey,
+      { method: unknown; wrapper: unknown }
+    >();
+    // Proxy a shadow so invariants never bind to inner's frozen properties.
+    const shadow: object =
+      typeof inner === 'function'
+        ? Object.setPrototypeOf(() => undefined, inner)
+        : Object.create(inner);
+    const proxy = new Proxy(shadow, {
       get: (_obj, prop) => {
         const value = target[prop as string];
         if (typeof value !== 'function') {
           return value;
         }
+        const cached = wrappers.get(prop);
+        if (cached !== undefined && cached.method === value) {
+          return cached.wrapper;
+        }
         const method = value as (...args: unknown[]) => unknown;
+        let wrapper: unknown;
         if (typeof prop === 'string' && levels.indexOf(prop) !== -1) {
-          return (...args: unknown[]) => {
+          wrapper = (...args: unknown[]) => {
             const result = method.apply(inner, args);
             try {
               this._alert(
@@ -261,14 +278,39 @@ class GasChat {
             }
             return result;
           };
+        } else if (prop === 'child') {
+          wrapper = (...args: unknown[]) =>
+            this.logger(method.apply(inner, args) as T, { ...options, levels });
+        } else {
+          wrapper = method.bind(inner);
         }
-        if (prop === 'child') {
-          return (...args: unknown[]) =>
-            this.logger(method.apply(inner, args) as T, options);
-        }
-        return method.bind(inner);
+        wrappers.set(prop, { method: value, wrapper });
+        return wrapper;
       },
+      set: (_obj, prop, value) => Reflect.set(inner, prop, value),
+      deleteProperty: (_obj, prop) => Reflect.deleteProperty(inner, prop),
+      defineProperty: (_obj, prop, descriptor) =>
+        descriptor.configurable === false
+          ? false
+          : Reflect.defineProperty(inner, prop, descriptor),
+      getPrototypeOf: () => Reflect.getPrototypeOf(inner),
+      preventExtensions: () => false,
+      ownKeys: () => Reflect.ownKeys(inner),
+      getOwnPropertyDescriptor: (_obj, prop) => {
+        const descriptor = Reflect.getOwnPropertyDescriptor(inner, prop);
+        if (descriptor === undefined) {
+          return undefined;
+        }
+        if ('value' in descriptor) {
+          descriptor.value = Reflect.get(proxy, prop);
+        }
+        descriptor.configurable = true;
+        return descriptor;
+      },
+      apply: (_obj, thisArg, args) =>
+        Reflect.apply(inner as unknown as () => unknown, thisArg, args),
     });
+    return proxy as T;
   }
 
   /** Builds an alert from a logger call's message and metadata. */

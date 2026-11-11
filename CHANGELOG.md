@@ -16,5 +16,8 @@
 ### Fixed
 
 - Throttle key now includes the webhook, app name and thread, so instances sharing the script cache no longer suppress each other's alerts.
+- `logger()` works with frozen or non-configurable loggers.
+- `logger()` snapshots `levels` at creation, including for child loggers.
+- Decorated logger methods keep a stable identity.
 
 ---

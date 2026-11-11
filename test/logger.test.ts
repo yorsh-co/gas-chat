@@ -202,4 +202,206 @@ describe('logger', () => {
     expect(() => chat.logger(target, { levels: [1] })).toThrow(TypeError);
     expect(() => chat.logger(target, { levels: 'error' })).toThrow(TypeError);
   });
+
+  describe('proxy shape', () => {
+    it('works on a frozen logger', () => {
+      const { chat, mocks } = setup();
+      const inner = Object.freeze({ error: vi.fn(), info: vi.fn() });
+      const log = chat.logger(inner);
+      log.error('x');
+      log.info('y');
+      expect(inner.error).toHaveBeenCalledWith('x');
+      expect(inner.info).toHaveBeenCalledWith('y');
+      expect(mocks.UrlFetchApp.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('preserves instanceof, in, keys and writes', () => {
+      const { chat } = setup();
+      class Base {
+        error = vi.fn();
+        info = vi.fn();
+      }
+      const inner = Object.freeze(new Base());
+      const log = chat.logger(inner);
+      expect(log instanceof Base).toBe(true);
+      expect('error' in log).toBe(true);
+      expect(Object.keys(log)).toEqual(Object.keys(inner));
+      const loose = new Base() as Base & { foo?: number };
+      const looseLog = chat.logger(loose) as typeof loose;
+      looseLog.foo = 1;
+      expect(loose.foo).toBe(1);
+    });
+
+    it('forwards configurable defineProperty to inner', () => {
+      const { chat } = setup();
+      const inner = { error: vi.fn() } as { error: () => void; x?: number };
+      const log = chat.logger(inner);
+      Object.defineProperty(log, 'x', {
+        value: 1,
+        configurable: true,
+        enumerable: true,
+        writable: true,
+      });
+      expect(inner.x).toBe(1);
+      expect(Object.keys(log)).toEqual(['error', 'x']);
+    });
+
+    it('rejects non-configurable defineProperty without mutating inner', () => {
+      const { chat } = setup();
+      const inner = { error: vi.fn() } as { error: () => void; x?: number };
+      const log = chat.logger(inner);
+      expect(() =>
+        Object.defineProperty(log, 'x', { value: 1, configurable: false }),
+      ).toThrow(TypeError);
+      expect(inner.x).toBeUndefined();
+    });
+
+    it('works on a frozen callable logger', () => {
+      const { chat, mocks } = setup();
+      const fn = vi.fn();
+      const error = vi.fn();
+      const inner = Object.freeze(Object.assign(fn, { error }));
+      const log = chat.logger(inner);
+      log.error('x');
+      expect(error).toHaveBeenCalledWith('x');
+      expect(mocks.UrlFetchApp.fetch).toHaveBeenCalledTimes(1);
+      (log as unknown as (m: string) => void)('hi');
+      expect(fn).toHaveBeenCalledWith('hi');
+      expect(Object.keys(log)).toEqual(Object.keys(inner));
+    });
+
+    it('supports level methods defined as getters', () => {
+      const { chat, mocks } = setup();
+      const errorFn = vi.fn();
+      const inner = {} as { error: () => void };
+      Object.defineProperty(inner, 'error', {
+        get: () => errorFn,
+        enumerable: true,
+      });
+      const log = chat.logger(inner);
+      log.error();
+      expect(errorFn).toHaveBeenCalledTimes(1);
+      expect(mocks.UrlFetchApp.fetch).toHaveBeenCalledTimes(1);
+      expect(Object.getOwnPropertyDescriptor(log, 'error')?.configurable).toBe(
+        true,
+      );
+    });
+
+    it('forwards the prototype of inner', () => {
+      const { chat } = setup();
+      class Base {
+        error = vi.fn();
+      }
+      expect(Object.getPrototypeOf(chat.logger(new Base()))).toBe(
+        Base.prototype,
+      );
+    });
+
+    it('rejects freeze and seal without breaking the proxy', () => {
+      const { chat } = setup();
+      const log = chat.logger({ error: vi.fn(), info: vi.fn() });
+      expect(() => Object.freeze(log)).toThrow(TypeError);
+      expect(() => Object.seal(log)).toThrow(TypeError);
+      log.info('x');
+      expect(Object.keys(log)).toEqual(['error', 'info']);
+    });
+
+    it('forwards delete to inner', () => {
+      const { chat } = setup();
+      const inner = { error: vi.fn(), x: 1 } as {
+        error: () => void;
+        x?: number;
+      };
+      const log = chat.logger(inner);
+      delete log.x;
+      expect('x' in inner).toBe(false);
+    });
+
+    it('reports own descriptors as configurable with the wrapped value', () => {
+      const { chat, mocks } = setup();
+      const inner = Object.freeze({ error: vi.fn() });
+      const log = chat.logger(inner);
+      const descriptor = Object.getOwnPropertyDescriptor(log, 'error');
+      expect(descriptor?.configurable).toBe(true);
+      expect(descriptor?.value).toBe(log.error);
+      descriptor?.value('x');
+      expect(mocks.UrlFetchApp.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('snapshots levels at creation', () => {
+      const { chat, mocks } = setup();
+      const levels = ['error'];
+      const log = chat.logger({ error: vi.fn(), warn: vi.fn() }, { levels });
+      levels.push('warn');
+      log.warn('x');
+      expect(mocks.UrlFetchApp.fetch).not.toHaveBeenCalled();
+    });
+
+    it('passes the levels snapshot to child loggers', () => {
+      const { chat, mocks } = setup();
+      const levels = ['error'];
+      const log = chat.logger(fakeLogger().logger as never, { levels }) as {
+        child: (b: unknown) => { warn: (m: string) => void };
+      };
+      levels.push('warn');
+      log.child({}).warn('x');
+      expect(mocks.UrlFetchApp.fetch).not.toHaveBeenCalled();
+    });
+
+    it('returns stable method identity', () => {
+      const { chat } = setup();
+      const log = chat.logger({ error: vi.fn(), info: vi.fn() });
+      expect(log.info).toBe(log.info);
+      expect(log.error).toBe(log.error);
+    });
+
+    it('reflects a reassigned inner method', () => {
+      const { chat } = setup();
+      const first = vi.fn();
+      const second = vi.fn();
+      const inner = { error: vi.fn(), info: first };
+      const log = chat.logger(inner);
+      log.info('a');
+      inner.info = second;
+      log.info('b');
+      expect(first).toHaveBeenCalledTimes(1);
+      expect(second).toHaveBeenCalledTimes(1);
+    });
+
+    it('alerts on a frozen class-instance inner', () => {
+      const { chat, mocks } = setup();
+      class Base {
+        error = vi.fn();
+      }
+      const log = chat.logger(Object.freeze(new Base()));
+      log.error('x');
+      expect(mocks.UrlFetchApp.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('alerts on a callable inner and still reaches it when called', () => {
+      const { chat, mocks } = setup();
+      const fn = Object.assign(
+        vi.fn(() => 42),
+        { error: vi.fn() },
+      );
+      const log = chat.logger(fn as never) as unknown as (() => number) & {
+        error(msg: string): void;
+      };
+      log.error('x');
+      expect(mocks.UrlFetchApp.fetch).toHaveBeenCalledTimes(1);
+      expect(log()).toBe(42);
+      expect(fn).toHaveBeenCalledTimes(1);
+    });
+
+    it('can call a callable inner through the proxy', () => {
+      const { chat } = setup();
+      const fn = Object.assign(
+        vi.fn(() => 42),
+        { error: vi.fn() },
+      );
+      const log = chat.logger(fn as never) as unknown as () => number;
+      expect(log()).toBe(42);
+      expect(fn).toHaveBeenCalledTimes(1);
+    });
+  });
 });

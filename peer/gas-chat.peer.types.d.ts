@@ -124,7 +124,8 @@ declare class GasChat {
    *
    * @param inner - Any object with an `error` method, such as GasLogger or `console`.
    * @param options - See {@link GasChatLoggerOptions}.
-   * @returns A proxy with the same shape as `inner`.
+   * @returns A proxy with the same shape as `inner`. Freezing or sealing the
+   * proxy and non-configurable `defineProperty` calls are unsupported.
    * @throws {TypeError} When `inner` or `levels` is invalid.
    */
   logger<T extends GasChatLoggerTarget>(
