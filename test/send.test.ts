@@ -410,7 +410,7 @@ describe('send redaction', () => {
     expectNoLeak(mocks, second);
   });
 
-  it('masks Chat URLs in a cache error before the URL is resolved', () => {
+  it('masks Chat URLs in a cache error', () => {
     const { chat, mocks } = setup();
     mocks.CacheService.getScriptCache.mockImplementationOnce(() => {
       throw new Error(
@@ -423,6 +423,54 @@ describe('send redaction', () => {
     expect(warning).not.toContain('token=t');
     expect(warning).not.toContain('key=k');
   });
+
+  it.each([
+    [
+      'notifyError',
+      (chat: { notifyError: (e: unknown) => unknown }, hostile: unknown) =>
+        chat.notifyError(hostile) as { error?: string } | undefined,
+      true,
+    ],
+    [
+      'logger',
+      (
+        chat: { logger: (t: unknown) => { error: (m: unknown) => void } },
+        hostile: unknown,
+      ) => {
+        chat.logger({ error: () => undefined }).error(hostile);
+        return undefined;
+      },
+      false,
+    ],
+  ])(
+    'masks Chat URLs in an error raised before the URL is resolved (%s)',
+    (_label, run, expectsResult) => {
+      const { chat, mocks } = setup();
+      const hostile = {
+        toString() {
+          throw new Error(
+            'boom https://chat.googleapis.com/v1/spaces/X/messages?key=k&token=t',
+          );
+        },
+      };
+      const result = run(chat as never, hostile);
+      expect(mocks.UrlFetchApp.fetch).not.toHaveBeenCalled();
+      expect(mocks.CacheService.getScriptCache).not.toHaveBeenCalled();
+      expect(mocks.console.warn).toHaveBeenCalledTimes(1);
+      const warning = String(mocks.console.warn.mock.calls[0]?.[0]);
+      expect(warning).toBe('[GasChat] Alert failed: boom [redacted]');
+      expect(warning).not.toContain('token=t');
+      expect(warning).not.toContain('key=k');
+      if (expectsResult) {
+        expect(result).toBeDefined();
+        expect(result?.error).toBe('boom [redacted]');
+        expect(result?.error).not.toContain('token=t');
+        expect(result?.error).not.toContain('key=k');
+      } else {
+        expect(result).toBeUndefined();
+      }
+    },
+  );
 
   it('masks a threadKey-appended URL in a non-2xx body', () => {
     const { chat, mocks } = setup({ webhookUrl: WEBHOOK_URL, threadKey: 't' });
