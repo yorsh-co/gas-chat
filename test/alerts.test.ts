@@ -26,7 +26,9 @@ describe('notifyError', () => {
     (context) => {
       const { chat, mocks } = setup();
       chat.notifyError(new Error('x'), context as never);
+      expect(mocks.UrlFetchApp.fetch).toHaveBeenCalledTimes(1);
       const text = sentText(mocks);
+      expect(text).toContain('`x`');
       expect(text).not.toContain('`0`');
       expect(text).not.toContain('`1`');
     },
