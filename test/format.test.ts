@@ -125,15 +125,33 @@ describe('_gasChatFormatAlert', () => {
 
   it('stays bounded and balanced for any header length', () => {
     const max = exports.GAS_CHAT_MAX_TEXT_LENGTH;
-    for (let n = 4040; n <= 4096; n += 1) {
+    const cap = exports.GAS_CHAT_MAX_LABEL_LENGTH;
+    // "🚨 *" + name + "* · " + title
+    const overhead = '🚨 *'.length + '* · '.length;
+    for (let n = cap - 5; n <= cap + 5; n += 1) {
       for (const text of [
         format({ title: 'T'.repeat(n), stack: 'at f\nat g' }),
         format({ title: 't', stack: 'at f\nat g' }, 'A'.repeat(n)),
+        format({ title: 'T'.repeat(n), stack: 'at f\nat g' }, 'A'.repeat(n)),
       ]) {
         expect(text.length).toBeLessThanOrEqual(max);
         expect(text.split('```').length % 2).toBe(1);
+        expect(text.split('\n')[0]?.length).toBeLessThanOrEqual(
+          2 * cap + overhead,
+        );
       }
     }
+  });
+
+  it('caps an oversized app name and title and keeps the time line', () => {
+    const cap = exports.GAS_CHAT_MAX_LABEL_LENGTH;
+    const marker = exports.GAS_CHAT_TRUNCATION_MARKER;
+    const label = (c: string): string => c.repeat(cap - marker.length) + marker;
+    const lines = format({ title: 'T'.repeat(5000) }, 'A'.repeat(5000)).split(
+      '\n',
+    );
+    expect(lines[0]).toBe(`🚨 *${label('A')}* · ${label('T')}`);
+    expect(lines).toContain('• time: `2026-01-02T03:04:05.000Z`');
   });
 
   it('does not split surrogate pairs when cutting', () => {
