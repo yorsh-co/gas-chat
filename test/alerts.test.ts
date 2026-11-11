@@ -86,6 +86,21 @@ describe('throttle', () => {
     }
   });
 
+  it('suppresses identical alerts across identically configured instances', () => {
+    const { exports, mocks } = loadGasChat();
+    const config = {
+      webhookUrl: WEBHOOK_URL,
+      appName: 'Orders',
+      threadKey: 'thread-a',
+    };
+    const a = new exports.GasChat(config);
+    const b = new exports.GasChat(config);
+    const err = new Error('boom');
+    expect(a.notifyError(err).throttled).toBe(false);
+    expect(b.notifyError(err).throttled).toBe(true);
+    expect(mocks.UrlFetchApp.fetch).toHaveBeenCalledTimes(1);
+  });
+
   it('does not touch the cache when the URL cannot be resolved', () => {
     const { exports, mocks } = loadGasChat();
     const chat = new exports.GasChat({ webhookUrl: () => null });
