@@ -354,10 +354,10 @@ class GasChat {
 
   /** Text of a thrown value; never throws. */
   private _errorText(e: unknown): string {
-    if (e instanceof Error) {
-      return e.message;
-    }
     try {
+      if (e instanceof Error) {
+        return typeof e.message === 'string' ? e.message : String(e.message);
+      }
       return String(e);
     } catch {
       return 'unknown error';

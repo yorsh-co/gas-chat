@@ -179,15 +179,46 @@ describe('webhook resolution', () => {
 
   it('retries a throwing resolver on the next call', () => {
     let calls = 0;
-    const { chat } = setup({
+    const { chat, mocks } = setup({
       webhookUrl: () => {
         calls += 1;
         throw new Error('nope');
       },
     });
-    chat.send('a');
-    chat.send('b');
+    const first = chat.send('a');
+    const second = chat.send('b');
     expect(calls).toBe(2);
+    expect(first.error).toBe('Webhook URL resolver failed: nope');
+    expect(second.error).toBe('Webhook URL resolver failed: nope');
+    expect(mocks.UrlFetchApp.fetch).not.toHaveBeenCalled();
+  });
+
+  it('reports an Error whose message getter throws', () => {
+    const { chat } = setup({
+      webhookUrl: () => {
+        const err = new Error('x');
+        Object.defineProperty(err, 'message', {
+          get() {
+            throw new Error('boom');
+          },
+        });
+        throw err;
+      },
+    });
+    expect(chat.send('hi').error).toBe(
+      'Webhook URL resolver failed: unknown error',
+    );
+  });
+
+  it('reports an Error whose message is not a string', () => {
+    const { chat } = setup({
+      webhookUrl: () => {
+        const err = new Error('x');
+        Object.defineProperty(err, 'message', { value: 42 });
+        throw err;
+      },
+    });
+    expect(chat.send('hi').error).toBe('Webhook URL resolver failed: 42');
   });
 
   it('does not cache a failure and retries on the next call', () => {
