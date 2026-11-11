@@ -99,7 +99,7 @@ declare class GasChat {
    * Reports an unexpected error to the space. Never throws.
    *
    * @param err - The caught value; non-Error values are stringified.
-   * @param context - Extra key/value pairs shown in the alert; non-object values are ignored.
+   * @param context - Extra key/value pairs shown in the alert; non-object values, arrays and boxed primitives are ignored.
    * @returns The delivery outcome, or `throttled: true` for a recent duplicate.
    */
   notifyError(
