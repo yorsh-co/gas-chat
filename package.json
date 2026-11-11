@@ -27,6 +27,12 @@
     ],
     "release": {
       "githubRelease": true
+    },
+    "gasTest": {
+      "scopes": [
+        "https://www.googleapis.com/auth/script.external_request",
+        "https://www.googleapis.com/auth/script.storage"
+      ]
     }
   },
   "devDependencies": {
@@ -55,7 +61,9 @@
     "test:watch": "vitest",
     "build": "npm run clean && tsc",
     "build:watch": "tsc --watch",
-    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json && echo '✓ TypeScript passed'"
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json && tsc -p gas-test/tsconfig.json --noEmit && echo '✓ TypeScript passed'",
+    "test:gas:build": "gasdev gas-test build",
+    "test:gas": "gasdev gas-test run"
   },
   "overrides": {
     "minimatch": "^11.0.1",
