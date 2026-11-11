@@ -42,10 +42,17 @@ describe('_gasChatFormatAlert', () => {
     expect(lines[1]).toMatch(/^• time:/);
   });
 
-  it('strips asterisks from developer-supplied names', () => {
+  it('replaces asterisks in developer-supplied names with lookalikes', () => {
     expect(format({ title: 'a*b' }, '*App*').split('\n')[0]).toBe(
-      '🚨 *App* · ab',
+      '🚨 *∗App∗* · a∗b',
     );
+  });
+
+  it('substitutes lookalikes for markup instead of dropping it', () => {
+    const header = format({ title: 'a*b~c<d>' }, 'my_app').split('\n')[0] ?? '';
+    expect(header).toContain('myˍapp');
+    expect(header).toContain('a∗b˜c‹d›');
+    expect(header.replace('🚨 *myˍapp* · ', '')).not.toMatch(/[*_~<>]/);
   });
 
   it('keeps mentions and backticks inside code spans', () => {
@@ -94,9 +101,9 @@ describe('_gasChatFormatAlert', () => {
     expect(texts.some((text) => !text.includes('```'))).toBe(true);
   });
 
-  it('strips markup and line breaks from title and appName', () => {
+  it('replaces markup and line breaks in title and appName', () => {
     const text = format({ title: 'a_b~c<d>e\r\nf\ng*h' }, '*A_p~p<>\n*');
-    expect(text.split('\n')[0]).toBe('🚨 *App * · abcde f gh');
+    expect(text.split('\n')[0]).toBe('🚨 *∗Aˍp˜p‹› ∗* · aˍb˜c‹d›e f g∗h');
   });
 
   it('keeps one line per inline span', () => {
