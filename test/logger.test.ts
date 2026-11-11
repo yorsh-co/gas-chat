@@ -46,7 +46,21 @@ describe('logger', () => {
     err.stack = 'TypeError: boom\n    at a (x.gs:1)';
     (log as unknown as { error: (m: unknown, x?: Meta) => void }).error(err);
     const text = sentText(mocks);
-    expect(text).toContain('TypeError');
+    expect(text.split('\n')[0]).toMatch(/· TypeError$/);
+    expect(text).toContain('`boom`');
+    expect(text).toContain('at a (x.gs:1)');
+  });
+
+  it('keeps the Error stack when meta.error is not an Error', () => {
+    const { chat, mocks } = setup();
+    const { logger } = fakeLogger();
+    const log = chat.logger(logger as { error(msg: string): void });
+    const err = new TypeError('boom');
+    err.stack = 'TypeError: boom\n    at a (x.gs:1)';
+    (log as unknown as { error: (m: unknown, x?: Meta) => void }).error(err, {
+      error: 'x',
+    });
+    const text = sentText(mocks);
     expect(text).toContain('`boom`');
     expect(text).toContain('at a (x.gs:1)');
   });
@@ -62,6 +76,7 @@ describe('logger', () => {
     const text = sentText(mocks);
     expect(text).toContain('`boom`');
     expect(text).toContain('• `orderId`: `1`');
+    expect(text).not.toMatch(/• `(error|err)`/);
   });
 
   it('alerts for a GasError-shaped error call', () => {

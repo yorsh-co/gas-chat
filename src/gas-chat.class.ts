@@ -277,9 +277,9 @@ class GasChat {
     meta: Record<string, unknown> = {},
   ): GasChatAlert {
     const source = meta !== null && typeof meta === 'object' ? meta : {};
-    const cause =
-      source.error ?? source.err ?? (msg instanceof Error ? msg : undefined);
-    const causeError = cause instanceof Error ? cause : undefined;
+    const causeError = [source.error, source.err, msg].find(
+      (c): c is Error => c instanceof Error,
+    );
     const message =
       typeof source.message === 'string'
         ? source.message
