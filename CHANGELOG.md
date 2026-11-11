@@ -24,5 +24,6 @@
 - Alert header labels now replace Chat markup characters (`*_~<>`) with lookalike characters instead of removing them, so `my_app` no longer renders as `myapp`.
 - A bare query pair in the webhook URL no longer masks unrelated text in diagnostics.
 - A throwing webhook URL resolver is reported as `Webhook URL resolver failed: <cause>` with Chat URLs masked, instead of "not configured".
+- `notifyError` ignores a non-object `context` (string, array or `null`) instead of spreading it into the alert.
 
 ---

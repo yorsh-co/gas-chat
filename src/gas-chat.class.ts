@@ -167,7 +167,7 @@ class GasChat {
    * Reports an unexpected error to the space. Never throws.
    *
    * @param err - The caught value; non-Error values are stringified.
-   * @param context - Extra key/value pairs shown in the alert.
+   * @param context - Extra key/value pairs shown in the alert; non-object values are ignored.
    * @returns The delivery outcome, or `throttled: true` for a recent duplicate.
    */
   notifyError(
@@ -184,7 +184,14 @@ class GasChat {
         title: 'Unexpected error',
         message: isError ? err.message : String(err),
         ...(isError && err.stack !== undefined ? { stack: err.stack } : {}),
-        context: { ...extra, ...context },
+        context: {
+          ...extra,
+          ...(typeof context === 'object' &&
+          context !== null &&
+          !Array.isArray(context)
+            ? context
+            : {}),
+        },
       });
     } catch (e) {
       return this._alertFailure(e);
