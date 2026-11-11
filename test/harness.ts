@@ -14,6 +14,8 @@ export interface GasChatExports {
   GAS_CHAT_DEFAULT_LOG_LEVELS: ReadonlyArray<string>;
   GAS_CHAT_CACHE_PREFIX: string;
   GAS_CHAT_TRUNCATION_MARKER: string;
+  _gasChatFormatAlert(appName: string, alert: unknown, now: Date): string;
+  _gasChatFingerprintSource(alert: unknown): string;
   GasChat: new (options: Record<string, unknown>) => GasChatInstance;
 }
 
@@ -25,6 +27,16 @@ export interface GasChatInstance {
     throttled: boolean;
     error?: string;
   };
+  notifyError(
+    err: unknown,
+    context?: Record<string, unknown>,
+  ): {
+    ok: boolean;
+    status: number | null;
+    throttled: boolean;
+    error?: string;
+  };
+  run<T>(source: string, fn: () => T): T;
 }
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -42,6 +54,8 @@ const load = createGasLoader<GasChatExports>({
     'GAS_CHAT_DEFAULT_LOG_LEVELS',
     'GAS_CHAT_CACHE_PREFIX',
     'GAS_CHAT_TRUNCATION_MARKER',
+    '_gasChatFormatAlert',
+    '_gasChatFingerprintSource',
     'GasChat',
   ],
   root: ROOT,

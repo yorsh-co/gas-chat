@@ -22,6 +22,7 @@
     "loadOrder": [
       "gas-chat.types.ts",
       "gas-chat.constants.ts",
+      "gas-chat.format.ts",
       "gas-chat.class.ts"
     ],
     "release": {

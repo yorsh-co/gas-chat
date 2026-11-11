@@ -170,6 +170,111 @@ class GasChat {
   }
 
   /**
+   * Reports an unexpected error to the space. Never throws.
+   *
+   * @param err - The caught value; non-Error values are stringified.
+   * @param context - Extra key/value pairs shown in the alert.
+   * @returns The delivery outcome, or `throttled: true` for a recent duplicate.
+   */
+  notifyError(
+    err: unknown,
+    context: Record<string, unknown> = {},
+  ): GasChatSendResult {
+    try {
+      const isError = err instanceof Error;
+      const extra: Record<string, unknown> = {};
+      if (isError && err.name !== 'Error') {
+        extra.name = err.name;
+      }
+      return this._alert({
+        title: 'Unexpected error',
+        message: isError ? err.message : String(err),
+        ...(isError && err.stack !== undefined ? { stack: err.stack } : {}),
+        context: { ...extra, ...context },
+      });
+    } catch (e) {
+      return this._alertFailure(e);
+    }
+  }
+
+  /**
+   * Runs `fn`, alerts on a throw and rethrows the original value unchanged.
+   *
+   * @param source - Name of the entry point, shown as `source` in the alert.
+   * @param fn - The guarded function.
+   * @returns The value returned by `fn`.
+   */
+  run<T>(source: string, fn: () => T): T {
+    try {
+      return fn();
+    } catch (err) {
+      this.notifyError(err, { source });
+      throw err;
+    }
+  }
+
+  /** Sends an alert, suppressing duplicates. Never throws. */
+  private _alert(alert: GasChatAlert): GasChatSendResult {
+    try {
+      const text = _gasChatFormatAlert(this._appName, alert, new Date());
+      let cache: GoogleAppsScript.Cache.Cache | null = null;
+      let key = '';
+      if (this._throttleSeconds > 0) {
+        try {
+          key =
+            GAS_CHAT_CACHE_PREFIX +
+            Utilities.base64EncodeWebSafe(
+              Utilities.computeDigest(
+                Utilities.DigestAlgorithm.SHA_256,
+                _gasChatFingerprintSource(alert),
+                Utilities.Charset.UTF_8,
+              ),
+            );
+          const scriptCache = CacheService.getScriptCache();
+          if (scriptCache.get(key) !== null) {
+            return { ok: true, status: null, throttled: true };
+          }
+          scriptCache.put(key, '1', this._throttleSeconds);
+          cache = scriptCache;
+        } catch (e) {
+          // Fail open: a cache error must not suppress the alert.
+          console.warn(`[GasChat] Throttle unavailable: ${this._redactAny(e)}`);
+          cache = null;
+        }
+      }
+
+      const result = this.send({ text });
+      if (!result.ok && cache !== null) {
+        try {
+          cache.remove(key);
+        } catch (e) {
+          console.warn(
+            `[GasChat] Throttle cleanup failed: ${this._redactAny(e)}`,
+          );
+        }
+      }
+      return result;
+    } catch (e) {
+      return this._alertFailure(e);
+    }
+  }
+
+  /** Converts an unexpected internal failure into a result and a warning. */
+  private _alertFailure(e: unknown): GasChatSendResult {
+    const error = this._redactAny(e);
+    console.warn(`[GasChat] Alert failed: ${error}`);
+    return { ok: false, status: null, throttled: false, error };
+  }
+
+  /** Error text with any webhook URL masked, for diagnostics. */
+  private _redactAny(e: unknown): string {
+    const text = e instanceof Error ? e.message : String(e);
+    return this._resolvedUrl === null
+      ? text
+      : this._redact(text, this._resolvedUrl);
+  }
+
+  /**
    * Returns the webhook URL, or a failure result when it cannot be resolved.
    * A resolved URL is cached; failures are not, so the next call retries.
    */
