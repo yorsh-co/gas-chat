@@ -202,4 +202,125 @@ describe('logger', () => {
     expect(() => chat.logger(target, { levels: [1] })).toThrow(TypeError);
     expect(() => chat.logger(target, { levels: 'error' })).toThrow(TypeError);
   });
+
+  describe('proxy shape', () => {
+    it('works on a frozen logger', () => {
+      const { chat, mocks } = setup();
+      const inner = Object.freeze({ error: vi.fn(), info: vi.fn() });
+      const log = chat.logger(inner);
+      log.error('x');
+      log.info('y');
+      expect(inner.error).toHaveBeenCalledWith('x');
+      expect(inner.info).toHaveBeenCalledWith('y');
+      expect(mocks.UrlFetchApp.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('preserves instanceof, in, keys and writes', () => {
+      const { chat } = setup();
+      class Base {
+        error = vi.fn();
+        info = vi.fn();
+      }
+      const inner = Object.freeze(new Base());
+      const log = chat.logger(inner);
+      expect(log instanceof Base).toBe(true);
+      expect('error' in log).toBe(true);
+      expect(Object.keys(log)).toEqual(Object.keys(inner));
+      const loose = new Base() as Base & { foo?: number };
+      const looseLog = chat.logger(loose) as typeof loose;
+      looseLog.foo = 1;
+      expect(loose.foo).toBe(1);
+    });
+
+    it('forwards configurable defineProperty to inner', () => {
+      const { chat } = setup();
+      const inner = { error: vi.fn() } as { error: () => void; x?: number };
+      const log = chat.logger(inner);
+      Object.defineProperty(log, 'x', {
+        value: 1,
+        configurable: true,
+        enumerable: true,
+        writable: true,
+      });
+      expect(inner.x).toBe(1);
+      expect(Object.keys(log)).toEqual(['error', 'x']);
+    });
+
+    it('forwards the prototype of inner', () => {
+      const { chat } = setup();
+      class Base {
+        error = vi.fn();
+      }
+      expect(Object.getPrototypeOf(chat.logger(new Base()))).toBe(
+        Base.prototype,
+      );
+    });
+
+    it('rejects freeze and seal without breaking the proxy', () => {
+      const { chat } = setup();
+      const log = chat.logger({ error: vi.fn(), info: vi.fn() });
+      expect(() => Object.freeze(log)).toThrow(TypeError);
+      expect(() => Object.seal(log)).toThrow(TypeError);
+      log.info('x');
+      expect(Object.keys(log)).toEqual(['error', 'info']);
+    });
+
+    it('forwards delete to inner', () => {
+      const { chat } = setup();
+      const inner = { error: vi.fn(), x: 1 } as {
+        error: () => void;
+        x?: number;
+      };
+      const log = chat.logger(inner);
+      delete log.x;
+      expect('x' in inner).toBe(false);
+    });
+
+    it('reports own descriptors as configurable with the wrapped value', () => {
+      const { chat, mocks } = setup();
+      const inner = Object.freeze({ error: vi.fn() });
+      const log = chat.logger(inner);
+      const descriptor = Object.getOwnPropertyDescriptor(log, 'error');
+      expect(descriptor?.configurable).toBe(true);
+      expect(descriptor?.value).not.toBe(inner.error);
+      descriptor?.value('x');
+      expect(mocks.UrlFetchApp.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('alerts on a frozen class-instance inner', () => {
+      const { chat, mocks } = setup();
+      class Base {
+        error = vi.fn();
+      }
+      const log = chat.logger(Object.freeze(new Base()));
+      log.error('x');
+      expect(mocks.UrlFetchApp.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('alerts on a callable inner and still reaches it when called', () => {
+      const { chat, mocks } = setup();
+      const fn = Object.assign(
+        vi.fn(() => 42),
+        { error: vi.fn() },
+      );
+      const log = chat.logger(fn as never) as unknown as (() => number) & {
+        error(msg: string): void;
+      };
+      log.error('x');
+      expect(mocks.UrlFetchApp.fetch).toHaveBeenCalledTimes(1);
+      expect(log()).toBe(42);
+      expect(fn).toHaveBeenCalledTimes(1);
+    });
+
+    it('can call a callable inner through the proxy', () => {
+      const { chat } = setup();
+      const fn = Object.assign(
+        vi.fn(() => 42),
+        { error: vi.fn() },
+      );
+      const log = chat.logger(fn as never) as unknown as () => number;
+      expect(log()).toBe(42);
+      expect(fn).toHaveBeenCalledTimes(1);
+    });
+  });
 });

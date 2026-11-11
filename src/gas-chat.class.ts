@@ -215,7 +215,8 @@ class GasChat {
    *
    * @param inner - Any object with an `error` method, such as GasLogger or `console`.
    * @param options - See {@link GasChatLoggerOptions}.
-   * @returns A proxy with the same shape as `inner`.
+   * @returns A proxy with the same shape as `inner`. Freezing or sealing the
+   * proxy and non-configurable `defineProperty` calls are unsupported.
    * @throws {TypeError} When `inner` or `levels` is invalid.
    */
   logger<T extends GasChatLoggerTarget>(
@@ -239,7 +240,12 @@ class GasChat {
     }
 
     const target = inner as unknown as Record<string, unknown>;
-    return new Proxy(inner, {
+    // Proxy a shadow so invariants never bind to inner's frozen properties.
+    const shadow: object =
+      typeof inner === 'function'
+        ? Object.setPrototypeOf(() => undefined, inner)
+        : Object.create(inner);
+    const proxy = new Proxy(shadow, {
       get: (_obj, prop) => {
         const value = target[prop as string];
         if (typeof value !== 'function') {
@@ -268,7 +274,28 @@ class GasChat {
         }
         return method.bind(inner);
       },
+      set: (_obj, prop, value) => Reflect.set(inner, prop, value),
+      deleteProperty: (_obj, prop) => Reflect.deleteProperty(inner, prop),
+      defineProperty: (_obj, prop, descriptor) =>
+        Reflect.defineProperty(inner, prop, descriptor),
+      getPrototypeOf: () => Reflect.getPrototypeOf(inner),
+      preventExtensions: () => false,
+      ownKeys: () => Reflect.ownKeys(inner),
+      getOwnPropertyDescriptor: (_obj, prop) => {
+        const descriptor = Reflect.getOwnPropertyDescriptor(inner, prop);
+        if (descriptor === undefined) {
+          return undefined;
+        }
+        if ('value' in descriptor) {
+          descriptor.value = Reflect.get(proxy, prop);
+        }
+        descriptor.configurable = true;
+        return descriptor;
+      },
+      apply: (_obj, thisArg, args) =>
+        Reflect.apply(inner as unknown as () => unknown, thisArg, args),
     });
+    return proxy as T;
   }
 
   /** Builds an alert from a logger call's message and metadata. */
