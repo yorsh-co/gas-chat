@@ -13,4 +13,10 @@
 - Peer type declarations (`peer/gas-chat.peer.types.d.ts`).
 - Usage and Google Chat webhook setup documentation.
 
+### Fixed
+
+- `logger()` works with frozen or non-configurable loggers.
+- `logger()` snapshots `levels` at creation, including for child loggers.
+- Decorated logger methods keep a stable identity.
+
 ---
