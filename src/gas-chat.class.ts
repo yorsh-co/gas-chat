@@ -252,7 +252,7 @@ class GasChat {
             try {
               this._alert(
                 this._alertFromLog(
-                  args[0] as string,
+                  args[0],
                   args[1] as Record<string, unknown> | undefined,
                 ),
               );
@@ -273,11 +273,12 @@ class GasChat {
 
   /** Builds an alert from a logger call's message and metadata. */
   private _alertFromLog(
-    msg: string,
+    msg: unknown,
     meta: Record<string, unknown> = {},
   ): GasChatAlert {
     const source = meta !== null && typeof meta === 'object' ? meta : {};
-    const cause = source.error ?? source.err;
+    const cause =
+      source.error ?? source.err ?? (msg instanceof Error ? msg : undefined);
     const causeError = cause instanceof Error ? cause : undefined;
     const message =
       typeof source.message === 'string'
@@ -292,7 +293,7 @@ class GasChat {
       }
     }
     return {
-      title: String(msg),
+      title: msg instanceof Error ? msg.name : String(msg),
       message,
       ...(stack !== undefined ? { stack } : {}),
       context,
