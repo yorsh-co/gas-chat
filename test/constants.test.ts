@@ -74,3 +74,9 @@ describe('GAS_CHAT_WEBHOOK_PATTERN', () => {
     expect(pattern.test(url)).toBe(false);
   });
 });
+
+describe('GAS_CHAT_MAX_LABEL_LENGTH', () => {
+  it('caps app names and titles at 200 characters', () => {
+    expect(loadGasChat().exports.GAS_CHAT_MAX_LABEL_LENGTH).toBe(200);
+  });
+});

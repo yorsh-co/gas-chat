@@ -82,9 +82,16 @@ describe('_gasChatFormatAlert', () => {
   });
 
   it('omits the stack when it does not fit', () => {
-    const text = format({ title: 'T'.repeat(4040), stack: 'at f' });
-    expect(text.length).toBeLessThanOrEqual(exports.GAS_CHAT_MAX_TEXT_LENGTH);
-    expect(text).not.toContain('```');
+    const texts = Array.from({ length: 200 }, (_v, n) => {
+      const context = Object.fromEntries(
+        Array.from({ length: 20 }, (_k, i) => [`k${i}`, 'v'.repeat(300 + n)]),
+      );
+      return format({ context, stack: 'at f' });
+    });
+    for (const text of texts) {
+      expect(text.length).toBeLessThanOrEqual(exports.GAS_CHAT_MAX_TEXT_LENGTH);
+    }
+    expect(texts.some((text) => !text.includes('```'))).toBe(true);
   });
 
   it('strips markup and line breaks from title and appName', () => {
@@ -144,10 +151,20 @@ describe('_gasChatFormatAlert', () => {
     expect(format({ context: { bad } })).toContain('[unserialisable]');
   });
 
-  it('hard-cuts an oversized header', () => {
-    const text = format({ title: 'T'.repeat(10000) });
-    expect(text.length).toBe(exports.GAS_CHAT_MAX_TEXT_LENGTH);
-    expect(text.endsWith(exports.GAS_CHAT_TRUNCATION_MARKER)).toBe(true);
+  it('keeps the body when the title is oversized', () => {
+    const text = format({
+      title: 'T'.repeat(5000),
+      message: 'm',
+      context: { a: 1 },
+      stack: 'Error: m\n    at f (a.gs:1)',
+    });
+    const lines = text.split('\n');
+    expect(lines[0]).toContain(exports.GAS_CHAT_TRUNCATION_MARKER);
+    expect(text).toContain('`m`');
+    expect(text).toContain('• `a`: `1`');
+    expect(text).toContain('• time: `2026-01-02T03:04:05.000Z`');
+    expect(text).toContain('```\nError: m\n    at f (a.gs:1)\n```');
+    expect(text.length).toBeLessThanOrEqual(exports.GAS_CHAT_MAX_TEXT_LENGTH);
   });
 
   it('caps context keys and reports the rest', () => {
