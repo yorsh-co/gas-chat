@@ -13,4 +13,8 @@
 - Peer type declarations (`peer/gas-chat.peer.types.d.ts`).
 - Usage and Google Chat webhook setup documentation.
 
+### Fixed
+
+- Alert header labels now replace Chat markup characters (`*_~<>`) with lookalike characters instead of removing them, so `my_app` no longer renders as `myapp`.
+
 ---
