@@ -19,5 +19,6 @@
 - `logger()` works with frozen or non-configurable loggers.
 - `logger()` snapshots `levels` at creation, including for child loggers.
 - Decorated logger methods keep a stable identity.
+- `logger` now reports an `Error` passed as the first argument with its name, message and stack instead of `String(err)`.
 
 ---
