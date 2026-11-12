@@ -12,6 +12,9 @@
 - Duplicate alert throttling through `CacheService`, configurable with `throttleSeconds`.
 - Peer type declarations (`peer/gas-chat.peer.types.d.ts`).
 - Usage, gas-logger and gas-error integration, and Google Chat webhook setup documentation.
+- Named webhook map for `webhookUrl` (required `default`, per-name lazy resolution and caching, redaction across all resolved URLs).
+- `webhook` on `GasChatMessage`, a `GasChatAlertOptions` third argument on `notifyError`, `run` options forwarding, and `webhook` on `GasChatLoggerOptions`.
+- ADRs 0005 and 0006 (gas-config integration deferred until secret fields).
 
 ### Fixed
 
