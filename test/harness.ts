@@ -5,6 +5,8 @@ import { createMocks, type Mocks } from './mocks';
 /** Constants and values exported by the loaded sources. */
 export interface GasChatExports {
   GAS_CHAT_WEBHOOK_PATTERN: RegExp;
+  GAS_CHAT_DEFAULT_WEBHOOK: string;
+  GAS_CHAT_WEBHOOK_NAME_PATTERN: RegExp;
   GAS_CHAT_MAX_TEXT_LENGTH: number;
   GAS_CHAT_MAX_CONTEXT_VALUE_LENGTH: number;
   GAS_CHAT_MAX_CONTEXT_KEYS: number;
@@ -47,6 +49,8 @@ const load = createGasLoader<GasChatExports>({
   files: loadOrderFiles(ROOT),
   exports: [
     'GAS_CHAT_WEBHOOK_PATTERN',
+    'GAS_CHAT_DEFAULT_WEBHOOK',
+    'GAS_CHAT_WEBHOOK_NAME_PATTERN',
     'GAS_CHAT_MAX_TEXT_LENGTH',
     'GAS_CHAT_MAX_CONTEXT_VALUE_LENGTH',
     'GAS_CHAT_MAX_CONTEXT_KEYS',
