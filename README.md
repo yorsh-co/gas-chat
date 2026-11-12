@@ -284,12 +284,12 @@ const chat = new GasChat({
 });
 ```
 
-| Option            | Type                                            | Default         | Description                                                                                                                   |
-| ----------------- | ----------------------------------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `webhookUrl`      | `string` or `() => string \| null \| undefined` | required        | Webhook URL, or a resolver called on first send per instance (result cached).                                                 |
-| `appName`         | `string`                                        | `'Apps Script'` | Shown in alert headers.                                                                                                       |
-| `throttleSeconds` | `number`                                        | `300`           | Suppresses identical alerts to the same webhook, app and thread for this many seconds; `0` disables. Integer from 0 to 21600. |
-| `threadKey`       | `string`                                        | none            | Default thread for every message; a per-message `threadKey` overrides it.                                                     |
+| Option            | Type                                                                      | Default         | Description                                                                                                                                                           |
+| ----------------- | ------------------------------------------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `webhookUrl`      | `string`, `() => string \| null \| undefined`, or a map of named webhooks | required        | Webhook URL, or a resolver called on first send per instance (result cached). A map needs a `default` entry; see [Route to several spaces](#route-to-several-spaces). |
+| `appName`         | `string`                                                                  | `'Apps Script'` | Shown in alert headers.                                                                                                                                               |
+| `throttleSeconds` | `number`                                                                  | `300`           | Suppresses identical alerts to the same webhook, app and thread for this many seconds; `0` disables. Integer from 0 to 21600.                                         |
+| `threadKey`       | `string`                                                                  | none            | Default thread for every message; a per-message `threadKey` overrides it.                                                                                             |
 
 Unknown options throw a `TypeError`.
 
@@ -377,6 +377,33 @@ log.error('Sync failed', { orderId: 1042 }); // console.error, then a Chat alert
 ```
 
 `levels` defaults to `['error', 'fatal']`. The inner logger is called first, and alert failures are reported with `console.warn` only. See [Using with gas-logger and gas-error](#using-with-gas-logger-and-gas-error) for details.
+
+### Route to several spaces
+
+Pass a map to post to more than one space from one instance. Each entry is a URL or a resolver, and `default` is required.
+
+```js
+const chat = new GasChat({
+  webhookUrl: {
+    default: () =>
+      PropertiesService.getScriptProperties().getProperty('CHAT_DEFAULT'),
+    reports: () =>
+      PropertiesService.getScriptProperties().getProperty('CHAT_REPORTS'),
+    ops: () => PropertiesService.getScriptProperties().getProperty('CHAT_OPS'),
+  },
+});
+
+chat.send({ text: 'Weekly report ready', webhook: 'reports' });
+chat.notifyError(err, { orderId: 1042 }, { webhook: 'ops' });
+chat.run('dailySync', () => sync(), { webhook: 'ops' });
+const log = chat.logger(console, { webhook: 'ops' });
+```
+
+Calls without a webhook use `default`. Names match `/^[A-Za-z][A-Za-z0-9_-]*$/`. Each name is resolved on first use and cached independently, and failures are not cached. `send` and `logger` throw a `TypeError` for an unknown name; `notifyError` and `run` never throw and return a failed result with a `console.warn`. Throttling is per webhook, and `threadKey` applies to every webhook.
+
+Webhook names may appear in errors and warnings. URLs never do: every resolved URL is masked in all diagnostics.
+
+> gas-config integration is planned once gas-config supports write-only secret fields. Do not store a webhook URL as a regular gas-config setting, because the settings UI shows it to every viewer. See [ADR 0006](./docs/adr/0006-gas-config-waits-for-secret-fields.md).
 
 ## Using with gas-logger and gas-error
 
@@ -597,6 +624,8 @@ Messages are prefixed `[GasChat]`.
 | `send`      | `[GasChat] text must be a string`                               |
 | `send`      | `[GasChat] message needs a non-empty text or cardsV2`           |
 | `send`      | `[GasChat] threadKey must be a non-empty string`                |
+| `send`      | `[GasChat] unknown webhook "<name>"`                            |
+| `send`      | `[GasChat] webhook must be a non-empty string`                  |
 | `logger`    | `[GasChat] logger target needs an error() method`               |
 | `logger`    | `[GasChat] levels must be a non-empty string array`             |
 
@@ -722,6 +751,8 @@ They are built and run with [gasdev](https://github.com/yorsh-co/gasdev#apps-scr
 - [Incoming webhook transport](./docs/adr/0002-incoming-webhook-transport.md)
 - [Alerting never throws](./docs/adr/0003-alerting-never-throws.md)
 - [Throttle with CacheService](./docs/adr/0004-throttle-with-cache-service.md)
+- [Named webhooks](./docs/adr/0005-named-webhooks.md)
+- [gas-config waits for secret fields](./docs/adr/0006-gas-config-waits-for-secret-fields.md)
 - [Google Chat setup](./docs/google-chat-setup.md)
 
 ## License
