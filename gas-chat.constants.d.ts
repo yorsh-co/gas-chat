@@ -1,0 +1,13 @@
+declare const GAS_CHAT_WEBHOOK_PATTERN: RegExp;
+declare const GAS_CHAT_MAX_TEXT_LENGTH = 4096;
+declare const GAS_CHAT_MAX_CONTEXT_VALUE_LENGTH = 500;
+declare const GAS_CHAT_MAX_CONTEXT_KEYS = 20;
+declare const GAS_CHAT_MAX_LABEL_LENGTH = 200;
+declare const GAS_CHAT_DEFAULT_APP_NAME = 'Apps Script';
+declare const GAS_CHAT_DEFAULT_THROTTLE_SECONDS = 300;
+declare const GAS_CHAT_MAX_THROTTLE_SECONDS = 21600;
+declare const GAS_CHAT_DEFAULT_LOG_LEVELS: ReadonlyArray<string>;
+declare const GAS_CHAT_CACHE_PREFIX = 'gas-chat:';
+declare const GAS_CHAT_TRUNCATION_MARKER = '\u2026[truncated]';
+declare const GAS_CHAT_DEFAULT_WEBHOOK = 'default';
+declare const GAS_CHAT_WEBHOOK_NAME_PATTERN: RegExp;
