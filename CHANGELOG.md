@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+---
+
+## [0.1.0] - 2026-11-12
+
 ### Added
 
 - `GasChat` class to post messages to a Google Chat space through an incoming webhook: `send` (text and `cardsV2`, optional `threadKey`) and `notifyError`.
