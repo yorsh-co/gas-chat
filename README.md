@@ -611,23 +611,29 @@ Alerts with the same webhook, app name, thread, title, message and first stack f
 
 Messages are prefixed `[GasChat]`.
 
-| Thrown by   | `TypeError` message                                             |
-| ----------- | --------------------------------------------------------------- |
-| constructor | `[GasChat] options must be an object`                           |
-| constructor | `[GasChat] unknown option "<name>"`                             |
-| constructor | `[GasChat] webhookUrl must be a Chat webhook URL or a function` |
-| constructor | `[GasChat] appName must be a non-empty string`                  |
-| constructor | `[GasChat] throttleSeconds must be an integer from 0 to 21600`  |
-| constructor | `[GasChat] threadKey must be a non-empty string`                |
-| `send`      | `[GasChat] message must be a string or an object`               |
-| `send`      | `[GasChat] cardsV2 must be an array`                            |
-| `send`      | `[GasChat] text must be a string`                               |
-| `send`      | `[GasChat] message needs a non-empty text or cardsV2`           |
-| `send`      | `[GasChat] threadKey must be a non-empty string`                |
-| `send`      | `[GasChat] unknown webhook "<name>"`                            |
-| `send`      | `[GasChat] webhook must be a non-empty string`                  |
-| `logger`    | `[GasChat] logger target needs an error() method`               |
-| `logger`    | `[GasChat] levels must be a non-empty string array`             |
+| Thrown by   | `TypeError` message                                                      |
+| ----------- | ------------------------------------------------------------------------ |
+| constructor | `[GasChat] options must be an object`                                    |
+| constructor | `[GasChat] unknown option "<name>"`                                      |
+| constructor | `[GasChat] webhookUrl must be a Chat webhook URL or a function`          |
+| constructor | `[GasChat] webhookUrl needs at least one webhook`                        |
+| constructor | `[GasChat] webhookUrl needs a "default" webhook`                         |
+| constructor | `[GasChat] webhook name "<name>" must match <pattern>`                   |
+| constructor | `[GasChat] webhookUrl "<name>" must be a Chat webhook URL or a function` |
+| constructor | `[GasChat] appName must be a non-empty string`                           |
+| constructor | `[GasChat] throttleSeconds must be an integer from 0 to 21600`           |
+| constructor | `[GasChat] threadKey must be a non-empty string`                         |
+| `send`      | `[GasChat] message must be a string or an object`                        |
+| `send`      | `[GasChat] cardsV2 must be an array`                                     |
+| `send`      | `[GasChat] text must be a string`                                        |
+| `send`      | `[GasChat] message needs a non-empty text or cardsV2`                    |
+| `send`      | `[GasChat] threadKey must be a non-empty string`                         |
+| `send`      | `[GasChat] unknown webhook "<name>"`                                     |
+| `send`      | `[GasChat] webhook must be a non-empty string`                           |
+| `logger`    | `[GasChat] logger target needs an error() method`                        |
+| `logger`    | `[GasChat] levels must be a non-empty string array`                      |
+| `logger`    | `[GasChat] unknown webhook "<name>"`                                     |
+| `logger`    | `[GasChat] webhook must be a non-empty string`                           |
 
 Delivery failures are returned in the result and logged with `console.warn`. `notifyError` never throws.
 
@@ -647,7 +653,7 @@ Main entry point for the library. Construct one instance at the top level of you
 ##### Methods
 
 ```js
-new GasChat(options); // { webhookUrl, appName?, throttleSeconds?, threadKey? }
+new GasChat(options); // { webhookUrl (URL, resolver or name map), appName?, throttleSeconds?, threadKey? }
 chat.send(message); // string | { text?, cardsV2?, threadKey? } → { ok, status, throttled, error? }
 chat.notifyError(err, context); // context is optional → { ok, status, throttled, error? }
 chat.run(source, fn); // → the value returned by fn

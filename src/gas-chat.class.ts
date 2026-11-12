@@ -526,8 +526,8 @@ class GasChat {
   /**
    * Returns the named webhook's URL, or a failure result when it cannot be
    * resolved. A resolved URL is cached per name; failures are not, so the
-   * next call retries. Resolver errors mask full Chat URLs only, since no
-   * resolved URL is available to mask bare keys or tokens.
+   * next call retries. Resolver errors mask every resolved webhook URL and
+   * any full Chat URL.
    */
   private _resolveUrl(name: string): string | GasChatSendResult {
     const cached = this._resolvedUrls.get(name);
