@@ -39,6 +39,34 @@ test('failed delivery', ({ prefix }) => {
   );
 });
 
+test('named webhooks', ({ prefix }) => {
+  const chat = new GasChat({
+    webhookUrl: { default: INVALID_SPACE_URL, ops: INVALID_SPACE_URL },
+  });
+
+  let thrown: unknown;
+  try {
+    chat.send({ text: `${prefix}named webhooks`, webhook: 'missing' });
+  } catch (error) {
+    thrown = error;
+  }
+  assert(thrown instanceof TypeError, 'an unknown webhook should throw');
+
+  const result = chat.notifyError(
+    new Error(`${prefix}named webhooks`),
+    {},
+    { webhook: 'ops' },
+  );
+  assert(
+    result.status !== null && result.status >= 400 && result.status < 500,
+    `expected a 4xx status, got ${String(result.status)}`,
+  );
+  assert(
+    !JSON.stringify(result).includes('token=y'),
+    'the result should not contain the webhook URL',
+  );
+});
+
 info('live send', ({ prefix }) => {
   const url =
     PropertiesService.getScriptProperties().getProperty(LIVE_URL_PROPERTY);

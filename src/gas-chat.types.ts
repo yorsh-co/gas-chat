@@ -1,7 +1,14 @@
+/** A webhook URL, or a resolver called on first use (result cached). */
+type GasChatWebhookSource = string | (() => string | null | undefined);
+
 /** Options for {@link GasChat}. */
 interface GasChatOptions {
-  /** Webhook URL, or a resolver called on first send per instance (result cached). */
-  webhookUrl: string | (() => string | null | undefined);
+  /**
+   * Webhook URL, a resolver called on first send per instance (result cached),
+   * or a map of named webhooks. The map requires a `default` entry.
+   */
+  webhookUrl:
+    GasChatWebhookSource | Readonly<Record<string, GasChatWebhookSource>>;
   /** Shown in alert headers. @default 'Apps Script' */
   appName?: string;
   /** Suppress identical alerts to the same webhook, app and thread for this many seconds; 0 disables. @default 300 */
@@ -26,6 +33,8 @@ interface GasChatMessage {
   cardsV2?: ReadonlyArray<GasChatCardV2>;
   /** Thread to post into; overrides the instance `threadKey`. */
   threadKey?: string;
+  /** Named webhook to post to. @default 'default' */
+  webhook?: string;
 }
 
 /** Outcome of a send. Never contains the webhook URL. */
@@ -45,10 +54,18 @@ interface GasChatLoggerTarget {
   error(msg: string, meta?: Record<string, unknown>): void;
 }
 
+/** Options for {@link GasChat.notifyError} and {@link GasChat.run}. */
+interface GasChatAlertOptions {
+  /** Named webhook to alert. @default 'default' */
+  webhook?: string;
+}
+
 /** Options for {@link GasChat.logger}. */
 interface GasChatLoggerOptions {
   /** Logger methods that also raise a Chat alert. @default ['error', 'fatal'] */
   levels?: ReadonlyArray<string>;
+  /** Named webhook to alert. @default 'default' */
+  webhook?: string;
 }
 
 /** Internal, normalized error alert rendered by the formatter. */

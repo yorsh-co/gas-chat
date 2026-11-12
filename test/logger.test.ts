@@ -446,3 +446,50 @@ describe('logger', () => {
     });
   });
 });
+
+describe('logger named webhook', () => {
+  const OPS_URL = WEBHOOK_URL.replace(/spaces\/[^/]+/, 'spaces/OPS');
+  const named = () =>
+    setup({ webhookUrl: { default: WEBHOOK_URL, ops: OPS_URL } });
+  const fetchedUrl = (mocks: ReturnType<typeof setup>['mocks'], call = 0) =>
+    String(mocks.UrlFetchApp.fetch.mock.calls[call]?.[0]);
+
+  it('alerts the named webhook and its child inherits it', () => {
+    const { chat, mocks } = named();
+    const { logger } = fakeLogger();
+    const wrapped = chat.logger(logger as { error: () => void }, {
+      webhook: 'ops',
+    }) as unknown as {
+      error: (msg: string) => void;
+      child: () => { error: (msg: string) => void };
+    };
+    wrapped.error('first');
+    wrapped.child().error('second');
+    expect(fetchedUrl(mocks, 0)).toBe(OPS_URL);
+    expect(fetchedUrl(mocks, 1)).toBe(OPS_URL);
+  });
+
+  it('throws TypeError at creation for a non-string webhook', () => {
+    const { chat } = named();
+    const { logger } = fakeLogger();
+    expect(() =>
+      chat.logger(logger, { webhook: 5 as unknown as string }),
+    ).toThrow(/webhook must be a non-empty string/);
+  });
+
+  it('alerts the default webhook from a child when no webhook is set', () => {
+    const { chat, mocks } = named();
+    const { logger } = fakeLogger();
+    const wrapped = chat.logger(logger as { error: () => void }) as unknown as {
+      child: () => { error: (msg: string) => void };
+    };
+    wrapped.child().error('boom');
+    expect(fetchedUrl(mocks, 0)).toBe(WEBHOOK_URL);
+  });
+
+  it('throws TypeError at creation for an unknown name', () => {
+    const { chat } = named();
+    const { logger } = fakeLogger();
+    expect(() => chat.logger(logger, { webhook: 'nope' })).toThrow(TypeError);
+  });
+});

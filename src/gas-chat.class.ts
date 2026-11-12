@@ -6,6 +6,16 @@ const GAS_CHAT_OPTION_KEYS: ReadonlyArray<string> = [
   'threadKey',
 ];
 
+/** True for a resolver function or a string that is a Chat webhook URL. */
+function _gasChatIsWebhookSource(
+  value: unknown,
+): value is GasChatWebhookSource {
+  return (
+    typeof value === 'function' ||
+    (typeof value === 'string' && GAS_CHAT_WEBHOOK_PATTERN.test(value))
+  );
+}
+
 /**
  * Posts messages to a Google Chat space through an incoming webhook.
  *
@@ -13,11 +23,12 @@ const GAS_CHAT_OPTION_KEYS: ReadonlyArray<string> = [
  * the webhook URL is a credential and never appears in either.
  */
 class GasChat {
-  private readonly _webhookUrl: string | (() => string | null | undefined);
+  private readonly _webhooks: Map<string, GasChatWebhookSource>;
+  private readonly _namedForm: boolean;
   private readonly _appName: string;
   private readonly _throttleSeconds: number;
   private readonly _threadKey: string | undefined;
-  private _resolvedUrl: string | null = null;
+  private readonly _resolvedUrls = new Map<string, string>();
 
   /**
    * @param options - See {@link GasChatOptions}.
@@ -34,16 +45,47 @@ class GasChat {
     }
 
     const { webhookUrl, appName, throttleSeconds, threadKey } = options;
-    if (
-      typeof webhookUrl !== 'function' &&
-      !(
-        typeof webhookUrl === 'string' &&
-        GAS_CHAT_WEBHOOK_PATTERN.test(webhookUrl)
-      )
-    ) {
-      throw new TypeError(
-        '[GasChat] webhookUrl must be a Chat webhook URL or a function',
-      );
+    const proto: unknown =
+      webhookUrl !== null && typeof webhookUrl === 'object'
+        ? Object.getPrototypeOf(webhookUrl)
+        : undefined;
+    // Realm-independent plain-object check: null prototype, or a prototype
+    // that is itself a root (Object.prototype).
+    const namedForm =
+      proto === null ||
+      (typeof proto === 'object' && Object.getPrototypeOf(proto) === null);
+    const webhooks = new Map<string, GasChatWebhookSource>();
+    if (namedForm) {
+      const entries = Object.keys(webhookUrl);
+      if (entries.length === 0) {
+        throw new TypeError('[GasChat] webhookUrl needs at least one webhook');
+      }
+      if (entries.indexOf(GAS_CHAT_DEFAULT_WEBHOOK) === -1) {
+        throw new TypeError(
+          `[GasChat] webhookUrl needs a "${GAS_CHAT_DEFAULT_WEBHOOK}" webhook`,
+        );
+      }
+      for (const name of entries) {
+        if (!GAS_CHAT_WEBHOOK_NAME_PATTERN.test(name)) {
+          throw new TypeError(
+            `[GasChat] webhook name "${this._maskChatUrls(name)}" must match ${GAS_CHAT_WEBHOOK_NAME_PATTERN.source}`,
+          );
+        }
+        const source = (webhookUrl as Record<string, unknown>)[name];
+        if (!_gasChatIsWebhookSource(source)) {
+          throw new TypeError(
+            `[GasChat] webhookUrl "${name}" must be a Chat webhook URL or a function`,
+          );
+        }
+        webhooks.set(name, source);
+      }
+    } else {
+      if (!_gasChatIsWebhookSource(webhookUrl)) {
+        throw new TypeError(
+          '[GasChat] webhookUrl must be a Chat webhook URL or a function',
+        );
+      }
+      webhooks.set(GAS_CHAT_DEFAULT_WEBHOOK, webhookUrl);
     }
     if (
       appName !== undefined &&
@@ -69,7 +111,8 @@ class GasChat {
       throw new TypeError('[GasChat] threadKey must be a non-empty string');
     }
 
-    this._webhookUrl = webhookUrl;
+    this._webhooks = webhooks;
+    this._namedForm = namedForm;
     this._appName = appName ?? GAS_CHAT_DEFAULT_APP_NAME;
     this._throttleSeconds =
       throttleSeconds ?? GAS_CHAT_DEFAULT_THROTTLE_SECONDS;
@@ -81,7 +124,7 @@ class GasChat {
    *
    * @param message - Text, or a message with `text` and/or `cardsV2`.
    * @returns The delivery outcome; delivery failures never throw.
-   * @throws {TypeError} When the message has no content or `threadKey` is invalid.
+   * @throws {TypeError} When the message has no content, or `threadKey` or `webhook` is invalid or unknown.
    */
   send(message: string | GasChatMessage): GasChatSendResult {
     const msg: GasChatMessage =
@@ -90,7 +133,7 @@ class GasChat {
       throw new TypeError('[GasChat] message must be a string or an object');
     }
 
-    const { text, cardsV2, threadKey } = msg;
+    const { text, cardsV2, threadKey, webhook } = msg;
     const hasText = typeof text === 'string' && text !== '';
     const hasCards = Array.isArray(cardsV2) && cardsV2.length > 0;
     if (cardsV2 !== undefined && !Array.isArray(cardsV2)) {
@@ -111,7 +154,9 @@ class GasChat {
       throw new TypeError('[GasChat] threadKey must be a non-empty string');
     }
 
-    const resolved = this._resolveUrl();
+    const webhookName = this._checkWebhook(webhook);
+
+    const resolved = this._resolveUrl(webhookName);
     if (typeof resolved !== 'string') {
       return resolved;
     }
@@ -142,9 +187,8 @@ class GasChat {
       if (status >= 200 && status < 300) {
         return { ok: true, status, throttled: false };
       }
-      const body = this._redact(
-        String(response.getContentText()),
-        resolved,
+      const body = this._redactAll(
+        this._redact(String(response.getContentText()), resolved),
       ).slice(0, 500);
       console.warn(`[GasChat] Chat returned HTTP ${status}: ${body}`);
       return {
@@ -154,9 +198,11 @@ class GasChat {
         error: `Chat returned HTTP ${status}`,
       };
     } catch (err) {
-      const error = this._redact(
-        err instanceof Error ? err.message : String(err),
-        resolved,
+      const error = this._redactAll(
+        this._redact(
+          err instanceof Error ? err.message : String(err),
+          resolved,
+        ),
       );
       console.warn(`[GasChat] Request failed: ${error}`);
       return { ok: false, status: null, throttled: false, error };
@@ -168,11 +214,13 @@ class GasChat {
    *
    * @param err - The caught value; non-Error values are stringified.
    * @param context - Extra key/value pairs shown in the alert; non-object values, arrays and boxed primitives are ignored.
+   * @param options - See {@link GasChatAlertOptions}; an unknown webhook name returns a failed result.
    * @returns The delivery outcome, or `throttled: true` for a recent duplicate.
    */
   notifyError(
     err: unknown,
     context: Record<string, unknown> = {},
+    options: GasChatAlertOptions = {},
   ): GasChatSendResult {
     try {
       const isError = err instanceof Error;
@@ -180,22 +228,29 @@ class GasChat {
       if (isError && err.name !== 'Error') {
         extra.name = err.name;
       }
-      return this._alert({
-        title: 'Unexpected error',
-        message: isError ? err.message : String(err),
-        ...(isError && err.stack !== undefined ? { stack: err.stack } : {}),
-        context: {
-          ...extra,
-          ...(typeof context === 'object' &&
-          context !== null &&
-          !Array.isArray(context) &&
-          !/^\[object (String|Number|Boolean)\]$/.test(
-            Object.prototype.toString.call(context),
-          )
-            ? context
-            : {}),
+      const webhook =
+        typeof options === 'object' && options !== null
+          ? options.webhook
+          : undefined;
+      return this._alert(
+        {
+          title: 'Unexpected error',
+          message: isError ? err.message : String(err),
+          ...(isError && err.stack !== undefined ? { stack: err.stack } : {}),
+          context: {
+            ...extra,
+            ...(typeof context === 'object' &&
+            context !== null &&
+            !Array.isArray(context) &&
+            !/^\[object (String|Number|Boolean)\]$/.test(
+              Object.prototype.toString.call(context),
+            )
+              ? context
+              : {}),
+          },
         },
-      });
+        webhook,
+      );
     } catch (e) {
       return this._alertFailure(e);
     }
@@ -206,13 +261,14 @@ class GasChat {
    *
    * @param source - Name of the entry point, shown as `source` in the alert.
    * @param fn - The guarded function.
+   * @param options - See {@link GasChatAlertOptions}.
    * @returns The value returned by `fn`.
    */
-  run<T>(source: string, fn: () => T): T {
+  run<T>(source: string, fn: () => T, options?: GasChatAlertOptions): T {
     try {
       return fn();
     } catch (err) {
-      this.notifyError(err, { source });
+      this.notifyError(err, { source }, options);
       throw err;
     }
   }
@@ -228,7 +284,7 @@ class GasChat {
    * @returns A proxy with the same shape as `inner`. Freezing or sealing the
    * proxy, non-configurable `defineProperty` calls and `new` on a callable proxy
    * are unsupported.
-   * @throws {TypeError} When `inner` or `levels` is invalid.
+   * @throws {TypeError} When `inner`, `levels` or `webhook` is invalid.
    */
   logger<T extends GasChatLoggerTarget>(
     inner: T,
@@ -250,6 +306,7 @@ class GasChat {
       throw new TypeError('[GasChat] levels must be a non-empty string array');
     }
     const levels = requested.slice();
+    const webhook = this._checkWebhook(options.webhook);
 
     const target = inner as unknown as Record<string, unknown>;
     // Reuses a wrapper while the inner method is unchanged, for stable identity.
@@ -283,6 +340,7 @@ class GasChat {
                   args[0],
                   args[1] as Record<string, unknown> | undefined,
                 ),
+                webhook,
               );
             } catch (e) {
               this._alertFailure(e);
@@ -291,7 +349,11 @@ class GasChat {
           };
         } else if (prop === 'child') {
           wrapper = (...args: unknown[]) =>
-            this.logger(method.apply(inner, args) as T, { ...options, levels });
+            this.logger(method.apply(inner, args) as T, {
+              ...options,
+              levels,
+              webhook,
+            });
         } else {
           wrapper = method.bind(inner);
         }
@@ -353,10 +415,11 @@ class GasChat {
     };
   }
 
-  /** Sends an alert, suppressing duplicates. Never throws. */
-  private _alert(alert: GasChatAlert): GasChatSendResult {
+  /** Sends an alert to a named webhook, suppressing duplicates. Never throws. */
+  private _alert(alert: GasChatAlert, webhook?: string): GasChatSendResult {
     try {
-      const url = this._resolveUrl();
+      const name = this._checkWebhook(webhook);
+      const url = this._resolveUrl(name);
       if (typeof url !== 'string') {
         return url;
       }
@@ -392,7 +455,7 @@ class GasChat {
         }
       }
 
-      const result = this.send({ text });
+      const result = this.send({ text, webhook: name });
       if (!result.ok && cache !== null) {
         try {
           cache.remove(key);
@@ -429,40 +492,68 @@ class GasChat {
 
   /** Error text with any webhook URL masked, for diagnostics. */
   private _redactAny(e: unknown): string {
-    const text = this._errorText(e);
-    return this._resolvedUrl === null
-      ? this._maskChatUrls(text)
-      : this._redact(text, this._resolvedUrl);
+    return this._redactAll(this._errorText(e));
+  }
+
+  /** Masks every resolved webhook URL, then any Chat URL, in `text`. */
+  private _redactAll(text: string): string {
+    let out = text;
+    for (const url of this._resolvedUrls.values()) {
+      out = this._redact(out, url);
+    }
+    return this._maskChatUrls(out);
   }
 
   /**
-   * Returns the webhook URL, or a failure result when it cannot be resolved.
-   * A resolved URL is cached; failures are not, so the next call retries.
-   * Resolver errors mask full Chat URLs only, since no resolved URL is
-   * available to mask bare keys or tokens.
+   * Validates a webhook name and returns it, defaulting to `default`.
+   * @throws {TypeError} When the name is not a string or is not configured.
    */
-  private _resolveUrl(): string | GasChatSendResult {
-    if (this._resolvedUrl !== null) {
-      return this._resolvedUrl;
+  private _checkWebhook(name: unknown): string {
+    if (name === undefined) {
+      return GAS_CHAT_DEFAULT_WEBHOOK;
+    }
+    if (typeof name !== 'string' || name === '') {
+      throw new TypeError('[GasChat] webhook must be a non-empty string');
+    }
+    if (!this._webhooks.has(name)) {
+      throw new TypeError(
+        `[GasChat] unknown webhook "${this._maskChatUrls(name)}"`,
+      );
+    }
+    return name;
+  }
+
+  /**
+   * Returns the named webhook's URL, or a failure result when it cannot be
+   * resolved. A resolved URL is cached per name; failures are not, so the
+   * next call retries. Resolver errors mask every resolved webhook URL and
+   * any full Chat URL.
+   */
+  private _resolveUrl(name: string): string | GasChatSendResult {
+    const cached = this._resolvedUrls.get(name);
+    if (cached !== undefined) {
+      return cached;
     }
 
-    let url: unknown = this._webhookUrl;
+    const source = this._webhooks.get(name);
+    const suffix = this._namedForm ? ` for webhook "${name}"` : '';
+    let url: unknown = source;
     let error: string | null = null;
-    if (typeof this._webhookUrl === 'function') {
+    if (typeof source === 'function') {
       try {
-        url = this._webhookUrl();
+        url = source();
       } catch (e) {
         url = null;
-        const reason = this._maskChatUrls(this._errorText(e));
-        error = `Webhook URL resolver failed: ${reason}`;
+        const reason = this._redactAll(this._errorText(e));
+        error = `Webhook URL resolver failed${suffix}: ${reason}`;
       }
     }
 
     if (error === null) {
       if (typeof url !== 'string' || url === '') {
-        error = 'Webhook URL is not configured';
+        error = `Webhook URL is not configured${suffix}`;
       } else if (!GAS_CHAT_WEBHOOK_PATTERN.test(url)) {
-        error = 'Webhook URL is invalid';
+        error = `Webhook URL is invalid${suffix}`;
       }
     }
     if (error !== null || typeof url !== 'string') {
@@ -470,7 +561,7 @@ class GasChat {
       return { ok: false, status: null, throttled: false, error: error ?? '' };
     }
 
-    this._resolvedUrl = url;
+    this._resolvedUrls.set(name, url);
     return url;
   }
 

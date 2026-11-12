@@ -80,3 +80,23 @@ describe('GAS_CHAT_MAX_LABEL_LENGTH', () => {
     expect(loadGasChat().exports.GAS_CHAT_MAX_LABEL_LENGTH).toBe(200);
   });
 });
+
+describe('GAS_CHAT_WEBHOOK_NAME_PATTERN', () => {
+  const { GAS_CHAT_WEBHOOK_NAME_PATTERN: pattern, GAS_CHAT_DEFAULT_WEBHOOK } =
+    loadGasChat().exports;
+
+  it('names the default webhook', () => {
+    expect(GAS_CHAT_DEFAULT_WEBHOOK).toBe('default');
+  });
+
+  it.each(['default', 'reports', 'ops-2', 'a_b', 'A'])('accepts %s', (name) => {
+    expect(pattern.test(name)).toBe(true);
+  });
+
+  it.each(['', '1ops', '-ops', 'a b', 'a.b', 'a/b', 'ops\n'])(
+    'rejects %j',
+    (name) => {
+      expect(pattern.test(name)).toBe(false);
+    },
+  );
+});

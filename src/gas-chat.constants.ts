@@ -34,3 +34,9 @@ const GAS_CHAT_CACHE_PREFIX = 'gas-chat:';
 
 /* Appended where text was cut to fit a limit */
 const GAS_CHAT_TRUNCATION_MARKER = '…[truncated]';
+
+/* Webhook name used when a call does not pick one */
+const GAS_CHAT_DEFAULT_WEBHOOK = 'default';
+
+/* Accepts webhook names that are safe to show in diagnostics */
+const GAS_CHAT_WEBHOOK_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9_-]*$/;
