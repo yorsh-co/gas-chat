@@ -54,10 +54,18 @@ interface GasChatLoggerTarget {
   error(msg: string, meta?: Record<string, unknown>): void;
 }
 
+/** Options for {@link GasChat.notifyError} and {@link GasChat.run}. */
+interface GasChatAlertOptions {
+  /** Named webhook to alert. @default 'default' */
+  webhook?: string;
+}
+
 /** Options for {@link GasChat.logger}. */
 interface GasChatLoggerOptions {
   /** Logger methods that also raise a Chat alert. @default ['error', 'fatal'] */
   levels?: ReadonlyArray<string>;
+  /** Named webhook to alert. @default 'default' */
+  webhook?: string;
 }
 
 /** Internal, normalized error alert rendered by the formatter. */

@@ -33,14 +33,18 @@ export interface GasChatInstance {
   notifyError(
     err: unknown,
     context?: Record<string, unknown>,
+    options?: { webhook?: unknown },
   ): {
     ok: boolean;
     status: number | null;
     throttled: boolean;
     error?: string;
   };
-  run<T>(source: string, fn: () => T): T;
-  logger<T extends object>(inner: T, options?: { levels?: unknown }): T;
+  run<T>(source: string, fn: () => T, options?: { webhook?: unknown }): T;
+  logger<T extends object>(
+    inner: T,
+    options?: { levels?: unknown; webhook?: unknown },
+  ): T;
 }
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));

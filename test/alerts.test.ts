@@ -290,3 +290,61 @@ describe('run', () => {
     ).toThrow(err);
   });
 });
+
+describe('named webhook alerts', () => {
+  const OPS_URL = WEBHOOK_URL.replace(/spaces\/[^/]+/, 'spaces/OPS');
+
+  function setupNamed() {
+    return setup({ webhookUrl: { default: WEBHOOK_URL, ops: OPS_URL } });
+  }
+
+  const fetchedUrl = (mocks: ReturnType<typeof setup>['mocks'], call = 0) =>
+    String(mocks.UrlFetchApp.fetch.mock.calls[call]?.[0]);
+
+  it('notifyError posts to the named webhook', () => {
+    const { chat, mocks } = setupNamed();
+    expect(chat.notifyError(new Error('boom'), {}, { webhook: 'ops' }).ok).toBe(
+      true,
+    );
+    expect(fetchedUrl(mocks)).toBe(OPS_URL);
+  });
+
+  it('returns a failed result and warns for an unknown name', () => {
+    const { chat, mocks } = setupNamed();
+    const result = chat.notifyError(new Error('boom'), {}, { webhook: 'nope' });
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('unknown webhook "nope"');
+    expect(mocks.console.warn).toHaveBeenCalledTimes(1);
+    expect(mocks.UrlFetchApp.fetch).not.toHaveBeenCalled();
+  });
+
+  it('treats non-object options as empty', () => {
+    const { chat, mocks } = setupNamed();
+    chat.notifyError(new Error('boom'), {}, null as never);
+    expect(fetchedUrl(mocks)).toBe(WEBHOOK_URL);
+  });
+
+  it('throttles independently per webhook', () => {
+    const { chat, mocks } = setupNamed();
+    const err = new Error('boom');
+    expect(chat.notifyError(err).throttled).toBe(false);
+    expect(chat.notifyError(err, {}, { webhook: 'ops' }).throttled).toBe(false);
+    expect(chat.notifyError(err, {}, { webhook: 'ops' }).throttled).toBe(true);
+    expect(mocks.UrlFetchApp.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('run alerts the named webhook and rethrows the original error', () => {
+    const { chat, mocks } = setupNamed();
+    const err = new Error('boom');
+    expect(() =>
+      chat.run(
+        'job',
+        () => {
+          throw err;
+        },
+        { webhook: 'ops' },
+      ),
+    ).toThrow(err);
+    expect(fetchedUrl(mocks)).toBe(OPS_URL);
+  });
+});

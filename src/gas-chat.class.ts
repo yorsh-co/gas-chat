@@ -214,11 +214,13 @@ class GasChat {
    *
    * @param err - The caught value; non-Error values are stringified.
    * @param context - Extra key/value pairs shown in the alert; non-object values, arrays and boxed primitives are ignored.
+   * @param options - See {@link GasChatAlertOptions}; an unknown webhook name returns a failed result.
    * @returns The delivery outcome, or `throttled: true` for a recent duplicate.
    */
   notifyError(
     err: unknown,
     context: Record<string, unknown> = {},
+    options: GasChatAlertOptions = {},
   ): GasChatSendResult {
     try {
       const isError = err instanceof Error;
@@ -226,22 +228,29 @@ class GasChat {
       if (isError && err.name !== 'Error') {
         extra.name = err.name;
       }
-      return this._alert({
-        title: 'Unexpected error',
-        message: isError ? err.message : String(err),
-        ...(isError && err.stack !== undefined ? { stack: err.stack } : {}),
-        context: {
-          ...extra,
-          ...(typeof context === 'object' &&
-          context !== null &&
-          !Array.isArray(context) &&
-          !/^\[object (String|Number|Boolean)\]$/.test(
-            Object.prototype.toString.call(context),
-          )
-            ? context
-            : {}),
+      const webhook =
+        typeof options === 'object' && options !== null
+          ? options.webhook
+          : undefined;
+      return this._alert(
+        {
+          title: 'Unexpected error',
+          message: isError ? err.message : String(err),
+          ...(isError && err.stack !== undefined ? { stack: err.stack } : {}),
+          context: {
+            ...extra,
+            ...(typeof context === 'object' &&
+            context !== null &&
+            !Array.isArray(context) &&
+            !/^\[object (String|Number|Boolean)\]$/.test(
+              Object.prototype.toString.call(context),
+            )
+              ? context
+              : {}),
+          },
         },
-      });
+        webhook,
+      );
     } catch (e) {
       return this._alertFailure(e);
     }
@@ -252,13 +261,14 @@ class GasChat {
    *
    * @param source - Name of the entry point, shown as `source` in the alert.
    * @param fn - The guarded function.
+   * @param options - See {@link GasChatAlertOptions}.
    * @returns The value returned by `fn`.
    */
-  run<T>(source: string, fn: () => T): T {
+  run<T>(source: string, fn: () => T, options?: GasChatAlertOptions): T {
     try {
       return fn();
     } catch (err) {
-      this.notifyError(err, { source });
+      this.notifyError(err, { source }, options);
       throw err;
     }
   }
@@ -274,7 +284,7 @@ class GasChat {
    * @returns A proxy with the same shape as `inner`. Freezing or sealing the
    * proxy, non-configurable `defineProperty` calls and `new` on a callable proxy
    * are unsupported.
-   * @throws {TypeError} When `inner` or `levels` is invalid.
+   * @throws {TypeError} When `inner`, `levels` or `webhook` is invalid.
    */
   logger<T extends GasChatLoggerTarget>(
     inner: T,
@@ -296,6 +306,7 @@ class GasChat {
       throw new TypeError('[GasChat] levels must be a non-empty string array');
     }
     const levels = requested.slice();
+    const webhook = this._checkWebhook(options.webhook);
 
     const target = inner as unknown as Record<string, unknown>;
     // Reuses a wrapper while the inner method is unchanged, for stable identity.
@@ -329,6 +340,7 @@ class GasChat {
                   args[0],
                   args[1] as Record<string, unknown> | undefined,
                 ),
+                webhook,
               );
             } catch (e) {
               this._alertFailure(e);
@@ -337,7 +349,11 @@ class GasChat {
           };
         } else if (prop === 'child') {
           wrapper = (...args: unknown[]) =>
-            this.logger(method.apply(inner, args) as T, { ...options, levels });
+            this.logger(method.apply(inner, args) as T, {
+              ...options,
+              levels,
+              webhook,
+            });
         } else {
           wrapper = method.bind(inner);
         }
@@ -399,10 +415,11 @@ class GasChat {
     };
   }
 
-  /** Sends an alert, suppressing duplicates. Never throws. */
-  private _alert(alert: GasChatAlert): GasChatSendResult {
+  /** Sends an alert to a named webhook, suppressing duplicates. Never throws. */
+  private _alert(alert: GasChatAlert, webhook?: string): GasChatSendResult {
     try {
-      const url = this._resolveUrl(GAS_CHAT_DEFAULT_WEBHOOK);
+      const name = this._checkWebhook(webhook);
+      const url = this._resolveUrl(name);
       if (typeof url !== 'string') {
         return url;
       }
@@ -438,7 +455,7 @@ class GasChat {
         }
       }
 
-      const result = this.send({ text });
+      const result = this.send({ text, webhook: name });
       if (!result.ok && cache !== null) {
         try {
           cache.remove(key);

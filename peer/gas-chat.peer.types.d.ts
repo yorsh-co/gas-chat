@@ -76,10 +76,18 @@ interface GasChatLoggerTarget {
   error(msg: string, meta?: Record<string, unknown>): void;
 }
 
+/** Options for {@link GasChat.notifyError} and {@link GasChat.run}. */
+interface GasChatAlertOptions {
+  /** Named webhook to alert. @default 'default' */
+  webhook?: string;
+}
+
 /** Options for {@link GasChat.logger}. */
 interface GasChatLoggerOptions {
   /** Logger methods that also raise a Chat alert. @default ['error', 'fatal'] */
   levels?: ReadonlyArray<string>;
+  /** Named webhook to alert. @default 'default' */
+  webhook?: string;
 }
 
 /**
@@ -109,11 +117,13 @@ declare class GasChat {
    *
    * @param err - The caught value; non-Error values are stringified.
    * @param context - Extra key/value pairs shown in the alert; non-object values, arrays and boxed primitives are ignored.
+   * @param options - See {@link GasChatAlertOptions}; an unknown webhook name returns a failed result.
    * @returns The delivery outcome, or `throttled: true` for a recent duplicate.
    */
   notifyError(
     err: unknown,
     context?: Record<string, unknown>,
+    options?: GasChatAlertOptions,
   ): GasChatSendResult;
 
   /**
@@ -121,9 +131,10 @@ declare class GasChat {
    *
    * @param source - Name of the entry point, shown as `source` in the alert.
    * @param fn - The guarded function.
+   * @param options - See {@link GasChatAlertOptions}.
    * @returns The value returned by `fn`.
    */
-  run<T>(source: string, fn: () => T): T;
+  run<T>(source: string, fn: () => T, options?: GasChatAlertOptions): T;
 
   /**
    * Decorates a logger so selected levels also raise a Chat alert.
@@ -136,7 +147,7 @@ declare class GasChat {
    * @returns A proxy with the same shape as `inner`. Freezing or sealing the
    * proxy, non-configurable `defineProperty` calls and `new` on a callable proxy
    * are unsupported.
-   * @throws {TypeError} When `inner` or `levels` is invalid.
+   * @throws {TypeError} When `inner`, `levels` or `webhook` is invalid.
    */
   logger<T extends GasChatLoggerTarget>(
     inner: T,
