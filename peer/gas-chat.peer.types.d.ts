@@ -17,7 +17,7 @@
  * which writes it to `src/internal/`.
  *
  * @see https://github.com/yorsh-co/gas-chat
- * @version 0.0.0
+ * @version 0.1.0
  */
 
 /** A webhook URL, or a resolver called on first use (result cached). */
